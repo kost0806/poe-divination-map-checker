@@ -113,16 +113,16 @@ export interface Dataset {
   calibration: Calibration | null;
 }
 
-/** 같은 맵 전용 카드들의 (가격, 거래량) 회귀 결과 */
+/** 같은 맵 전용 카드들의 (골드 수수료, 거래량) 회귀 결과 */
 export interface Calibration {
-  /** 드랍률 ∝ 가격^(-beta) 의 beta 추정치 */
-  beta: number;
+  /** 드랍률 ∝ 골드^(-gamma) 의 gamma 추정치 */
+  gamma: number;
   r2: number;
   /** 관측 쌍 개수 */
   samples: number;
   /** 사용된 맵 개수 */
   maps: number;
-  /** 회귀에 사용한 최소 가격(카오스) */
-  minPriceChaos: number;
-  points: { card: string; map: string; chaos: number; volume: number }[];
+  /** 회귀에 포함할 최소 거래량 */
+  minVolume: number;
+  points: { card: string; map: string; gold: number; chaos: number; volume: number }[];
 }

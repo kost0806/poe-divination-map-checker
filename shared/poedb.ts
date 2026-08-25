@@ -229,10 +229,20 @@ export function parseMapPage(html: string, name: string, slug: string): MapInfo 
   };
 }
 
+/** PoE 텍스트 마크업(<size:23>, {강조}) 제거 */
+function cleanItemText(raw: string): string {
+  return text(raw.replace(/<br\s*\/?>/gi, ' / ').replace(/<size:\d+>/gi, ''))
+    .replace(/[{}]/g, '')
+    .trim();
+}
+
 export function parseCardPage(html: string, name: string, slug: string): CardInfo {
   const attr = attributeMap(html);
   const stack = html.match(/<div class="stackSize">(\d+)<\/div>/);
   const flavour = html.match(/<div class='FlavourText'>([\s\S]*?)<\/div>/);
+  // 카드 아트의 보상 영역에는 수량까지 들어 있다 ("5x Divine Orb").
+  // 속성표의 Reward 행은 아이템 이름만 있어 수량이 빠진다.
+  const explicit = html.match(/<div class='explicitArea'>([\s\S]*?)<\/div>\s*<\/div>/);
   const reward = attr.get('Reward');
   const gold = attr.get('Currency Exchange');
   return {
@@ -240,11 +250,11 @@ export function parseCardPage(html: string, name: string, slug: string): CardInf
     slug,
     noteCode: attr.has('NoteCode') ? text(attr.get('NoteCode')!) || null : null,
     stackSize: stack ? Number(stack[1]) : null,
-    reward: reward ? text(reward) || null : null,
+    reward: explicit ? cleanItemText(explicit[1]) || null : reward ? text(reward) || null : null,
     dropLevel: num(attr.get('DropLevel')),
     // "925 Gold" 형태로 표기된다
     goldFee: gold ? toNumber(text(gold).replace(/[^\d.]/g, '')) : null,
-    flavourText: flavour ? text(flavour[1]) || null : null,
+    flavourText: flavour ? cleanItemText(flavour[1]) || null : null,
   };
 }
 

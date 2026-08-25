@@ -1,0 +1,234 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { computeAll, DEFAULT_PARAMS, type EvParams, type MapEv } from '../shared/ev';
+import type { Dataset } from '../shared/types';
+import { Controls, type ViewOptions } from './components/Controls';
+import { MapDetail } from './components/MapDetail';
+import { MapTable } from './components/MapTable';
+import { Methodology } from './components/Methodology';
+import { chaos, round, timeAgo } from './lib/format';
+
+const FAV_KEY = 'poe-div-favourites';
+
+const DEFAULT_VIEW: ViewOptions = {
+  sort: 'evPerRun',
+  minTier: 1,
+  maxTier: 17,
+  query: '',
+  favouritesOnly: false,
+};
+
+function loadFavourites(): Set<string> {
+  try {
+    const raw = localStorage.getItem(FAV_KEY);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function App() {
+  const [dataset, setDataset] = useState<Dataset | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [params, setParams] = useState<EvParams>(DEFAULT_PARAMS);
+  const [view, setView] = useState<ViewOptions>(DEFAULT_VIEW);
+  const [tab, setTab] = useState<'maps' | 'method'>('maps');
+  const [selected, setSelected] = useState<string | null>(null);
+  const [favourites, setFavourites] = useState<Set<string>>(loadFavourites);
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch('/api/dataset')
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d: Dataset) => {
+        setDataset(d);
+        // 실측 γ를 기본값으로 채택한다 (표본이 너무 적으면 무시)
+        if (d.calibration && d.calibration.samples >= 20) {
+          setParams((p) => ({ ...p, gamma: Math.round(d.calibration!.gamma * 20) / 20 }));
+        }
+      })
+      .catch((e: unknown) => setError(String(e)));
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(FAV_KEY, JSON.stringify([...favourites]));
+  }, [favourites]);
+
+  // 상세는 표 위에 열리므로, 표 아래쪽 행을 눌렀을 때도 보이도록 스크롤한다
+  useEffect(() => {
+    if (selected) detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [selected]);
+
+  const all: MapEv[] = useMemo(
+    () =>
+      dataset
+        ? computeAll(
+            {
+              areas: dataset.static.areas,
+              maps: dataset.static.maps,
+              cards: dataset.static.cards,
+              prices: dataset.prices.prices,
+            },
+            params,
+          )
+        : [],
+    [dataset, params],
+  );
+
+  const rows = useMemo(() => {
+    const q = view.query.trim().toLowerCase();
+    const filtered = all.filter((r) => {
+      if (r.map.tier < view.minTier || r.map.tier > view.maxTier) return false;
+      if (view.favouritesOnly && !favourites.has(r.map.slug)) return false;
+      if (!q) return true;
+      return (
+        r.map.name.toLowerCase().includes(q) ||
+        r.cards.some((c) => c.card.toLowerCase().includes(q)) ||
+        r.locked.some((c) => c.card.toLowerCase().includes(q))
+      );
+    });
+    const key = view.sort;
+    return [...filtered].sort((a, b) =>
+      key === 'tier' ? b.map.tier - a.map.tier || b.evPerRun - a.evPerRun : b[key] - a[key],
+    );
+  }, [all, view, favourites]);
+
+  const selectedRow = rows.find((r) => r.map.slug === selected) ?? null;
+  const favRows = all.filter((r) => favourites.has(r.map.slug));
+
+  const toggleFavourite = (slug: string) =>
+    setFavourites((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
+
+  if (error) {
+    return (
+      <div className="app">
+        <div className="banner">
+          데이터를 불러오지 못했습니다: <span className="badText">{error}</span>
+        </div>
+      </div>
+    );
+  }
+  if (!dataset) return <div className="app dim">데이터 불러오는 중…</div>;
+
+  const div = dataset.prices.divineChaos;
+
+  return (
+    <div className="app">
+      <header className="top">
+        <h1>맵별 디비네이션 카드 기대수익</h1>
+        <div className="meta">
+          <span>리그 <b>{dataset.league?.id ?? '알 수 없음'}</b></span>
+          <span>1 디바인 = <b>{round(div)}</b> 카오스</span>
+          <span>시세 <b>{timeAgo(dataset.prices.fetchedAt)}</b></span>
+          <span>맵 <b>{all.length}</b>개</span>
+        </div>
+      </header>
+
+      {dataset.stale && (
+        <div className="banner">
+          실시간 시세 조회에 실패해 저장된 스냅샷({timeAgo(dataset.prices.fetchedAt)})으로 계산 중입니다.
+        </div>
+      )}
+
+      <div className="tabs">
+        <button className={tab === 'maps' ? 'active' : ''} onClick={() => setTab('maps')}>
+          맵 순위
+        </button>
+        <button className={tab === 'method' ? 'active' : ''} onClick={() => setTab('method')}>
+          계산 방식과 한계
+        </button>
+      </div>
+
+      {tab === 'method' ? (
+        <Methodology dataset={dataset} />
+      ) : (
+        <div className="layout">
+          <Controls
+            params={params}
+            onParams={setParams}
+            view={view}
+            onView={setView}
+            calibration={dataset.calibration}
+            onReset={() => {
+              setParams({
+                ...DEFAULT_PARAMS,
+                gamma: dataset.calibration
+                  ? Math.round(dataset.calibration.gamma * 20) / 20
+                  : DEFAULT_PARAMS.gamma,
+              });
+              setView(DEFAULT_VIEW);
+            }}
+          />
+
+          <div>
+            {favRows.length > 0 && (
+              <div className="panel" style={{ marginBottom: 12 }}>
+                <h2>선호 지도 {favRows.length}개</h2>
+                <div className="tableWrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>맵</th>
+                        <th style={{ width: 44 }}>티어</th>
+                        <th className="num">1회당</th>
+                        <th className="num">시간당</th>
+                        <th>주력 카드</th>
+                        <th style={{ width: 28 }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...favRows]
+                        .sort((a, b) => b.evPerRun - a.evPerRun)
+                        .map((r) => (
+                          <tr key={r.map.slug} className="clickable" onClick={() => setSelected(r.map.slug)}>
+                            <td>{r.map.name.replace(/ Map$/, '')}</td>
+                            <td><span className="tier">T{r.map.tier}</span></td>
+                            <td className="num chaos">{chaos(r.evPerRun, div)}</td>
+                            <td className="num">{chaos(r.evPerHour, div)}</td>
+                            <td className="small dim">{r.cards[0]?.card ?? '-'}</td>
+                            <td>
+                              <button
+                                className="fav on"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleFavourite(r.map.slug);
+                                }}
+                              >
+                                ★
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {selectedRow && (
+              <div ref={detailRef}>
+                <MapDetail row={selectedRow} divineChaos={div} />
+              </div>
+            )}
+
+            <div className="panel" style={{ marginTop: 12 }}>
+              <MapTable
+                rows={rows}
+                divineChaos={div}
+                selected={selected}
+                favourites={favourites}
+                onSelect={(slug) => setSelected(slug === selected ? null : slug)}
+                onToggleFavourite={toggleFavourite}
+              />
+            </div>
+
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
