@@ -52,17 +52,29 @@ export const GAMMA_BOUNDS = { min: 0.3, max: 5 };
 /** 공허석 4개를 모두 장착하면 아틀라스 전체가 16등급이 된다 */
 export const VOIDSTONE_TIER = 16;
 
+/** 쉐이퍼 수호자 지도는 아틀라스 대신 쉐이퍼의 영역과 이어져 있다 */
+const SHAPER_REALM = "The Shaper's Realm";
+
 /**
- * 선호 지도로 예지할 수 있는 지도인지 판정한다.
- * 17등급 지도와 아틀라스 밖 지도(map_not_on_atlas: 자나 기억으로만 들어가는 거짓의 극장 등)는
- * 예지 대상이 아니라 비교에서 제외한다. 고유 지도는 애초에 지역 목록에서 지도로 분류되지 않아
- * 들어오지 않는다.
+ * 선호 지도로 예지할 수 있는 지도인지 판정한다. 아틀라스에 올라 있는 일반 지도만 남긴다.
+ * 제외 대상:
+ * - 17등급 지도
+ * - map_not_on_atlas 태그 (자나 기억으로만 들어가는 거짓의 극장 등)
+ * - 쉐이퍼 수호자 지도 (키메라의 구덩이·히드라의 소굴·미노타우로스의 미로·불사조의 대장간).
+ *   아틀라스 연결이 다른 지도가 아니라 쉐이퍼의 영역으로 되어 있는 것으로 구분한다
+ * - 바알 사원 지도 (바알 피라미드 지도를 타락시켜야 나온다)
+ * 고유 지도는 애초에 지역 목록에서 지도로 분류되지 않아 들어오지 않는다.
  *
  * 지도 아이템에 붙는 인챈트(예: "지도가 태초자의 영향을 받음")는 지도 베이스가 아니므로
- * 목록에 영향을 주지 않는다. 카드 풀은 지도 베이스 단위로만 정의된다.
+ * 목록에 영향을 주지 않는다. 카드 풀은 지도 베이스 단위로만 정의된다. 엘더 수호자도 마찬가지로
+ * 일반 지도에 영향력이 걸려 등장할 뿐 별도 지도 베이스가 아니다.
  */
 export function isFavourable(map: MapInfo): boolean {
-  return map.tier <= VOIDSTONE_TIER && !map.tags.includes('map_not_on_atlas');
+  if (map.tier > VOIDSTONE_TIER) return false;
+  if (map.tags.includes('map_not_on_atlas')) return false;
+  if (map.tags.includes('vaal_pyramid_area')) return false;
+  if (map.linked.includes(SHAPER_REALM)) return false;
+  return true;
 }
 
 export const DEFAULT_PARAMS: EvParams = {
@@ -80,6 +92,8 @@ export interface CardRow {
   card: string;
   /** 공식 한국어 카드명 */
   cardKo: string | null;
+  /** PoEDB 문서 슬러그 */
+  slug: string | null;
   /** 드롭에 필요한 지역 레벨 */
   requiredLevel: number;
   chaos: number;
@@ -110,7 +124,13 @@ export interface MapEv {
   /** 드롭 레벨 조건을 통과한 전용 카드 수 */
   poolSize: number;
   /** 지역 레벨이 낮아 드롭되지 않는 카드 */
-  locked: { card: string; cardKo: string | null; requiredLevel: number; chaos: number }[];
+  locked: {
+    card: string;
+    cardKo: string | null;
+    slug: string | null;
+    requiredLevel: number;
+    chaos: number;
+  }[];
   /** 상대 드롭량 Σ gold^(-γ) */
   relativeDrops: number;
   /** 상대 기대 수익 Σ gold^(-γ) × 시세 — 지도 간 순위의 기준값 */
@@ -243,7 +263,7 @@ function rowsFor(area: AreaPool, index: Index, areaLevel: number) {
     price: PriceEntry | undefined;
     requiredLevel: number;
   }[] = [];
-  const locked: { card: string; cardKo: string | null; requiredLevel: number; chaos: number }[] = [];
+  const locked: MapEv['locked'] = [];
 
   for (const entry of area.cards) {
     const key = normalizeName(entry.card);
@@ -255,6 +275,7 @@ function rowsFor(area: AreaPool, index: Index, areaLevel: number) {
       locked.push({
         card: entry.card,
         cardKo: info?.nameKo ?? null,
+        slug: info?.slug ?? null,
         requiredLevel,
         chaos: price?.chaos ?? 0,
       });
@@ -283,6 +304,7 @@ export function computeMapEv(
     return {
       card: e.entry.card,
       cardKo: e.info?.nameKo ?? null,
+      slug: e.info?.slug ?? null,
       requiredLevel: e.requiredLevel,
       chaos: e.price ? e.price.chaos : params.priceFloorChaos,
       noPrice: !e.price,

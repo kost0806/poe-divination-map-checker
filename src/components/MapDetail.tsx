@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { EvParams, MapEv } from '../../shared/ev';
 import { chaos, frequency, percent, round } from '../lib/format';
-import { ko } from '../lib/names';
+import { ko, poedbUrl } from '../lib/names';
 
 interface Props {
   row: MapEv;
@@ -14,6 +14,17 @@ interface Props {
 }
 
 const layoutLabel = (v: boolean | null) => (v === null ? '-' : v ? '예' : '아니오');
+
+/** 카드 이름을 PoEDB 문서로 연결한다 */
+function CardLink({ name, slug }: { name: string; slug: string | null }) {
+  const url = poedbUrl(slug);
+  if (!url) return <>{name}</>;
+  return (
+    <a className="cardLink" href={url} target="_blank" rel="noreferrer noopener" title="PoEDB에서 보기">
+      {name}
+    </a>
+  );
+}
 
 export function MapDetail({
   row,
@@ -109,10 +120,12 @@ export function MapDetail({
             {row.cards.map((c) => (
               <tr key={c.card}>
                 <td>
-                  {ko(c.cardKo, c.card)}
+                  <CardLink name={ko(c.cardKo, c.card)} slug={c.slug} />
                   {c.noPrice && <span className="dim small" title="화폐 거래소에 시세 없음"> · 시세 없음</span>}
                 </td>
-                <td className="num chaos">{chaos(c.chaos, divineChaos)}</td>
+                <td className="num chaos">
+                  {c.noPrice ? <span className="dim">-</span> : chaos(c.chaos, divineChaos)}
+                </td>
                 <td className="num dim">{c.goldFee ?? '-'}</td>
                 <td className="num">{frequency(c.runsPerDrop)}</td>
                 <td className="num">
@@ -182,9 +195,13 @@ export function MapDetail({
       {row.locked.length > 0 && (
         <p className="small dim" style={{ marginTop: 10 }}>
           🔒 지역 레벨이 낮아 드롭되지 않는 카드:{' '}
-          {row.locked
-            .map((l) => `${ko(l.cardKo, l.card)} (레벨 ${l.requiredLevel}${l.chaos ? `, ${chaos(l.chaos, divineChaos)}` : ''})`)
-            .join(', ')}
+          {row.locked.map((l, i) => (
+            <span key={l.card}>
+              {i > 0 && ', '}
+              <CardLink name={ko(l.cardKo, l.card)} slug={l.slug} />
+              {` (레벨 ${l.requiredLevel}${l.chaos ? `, ${chaos(l.chaos, divineChaos)}` : ''})`}
+            </span>
+          ))}
         </p>
       )}
 
