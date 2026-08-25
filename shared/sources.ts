@@ -1,5 +1,5 @@
 /** 원격 데이터 소스 조회 (PoEDB 스크레이핑 + 공식 리그 API) */
-import { fetchJson, fetchText, mapWithConcurrency } from './http';
+import { fetchJson, fetchText, mapWithConcurrency } from './http.js';
 import {
   POEDB_BASE,
   poedbBase,
@@ -10,8 +10,8 @@ import {
   parseEconomyTable,
   parseMapPage,
   toPriceEntries,
-} from './poedb';
-import type { CardInfo, LeagueInfo, MapInfo, PriceData, StaticData } from './types';
+} from './poedb.js';
+import type { CardInfo, LeagueInfo, MapInfo, PriceData, StaticData } from './types.js';
 
 /** 화폐 거래소 시세 (카드 + 신성한 오브 환율). 런타임에 주기적으로 갱신되는 부분 */
 export async function fetchPrices(): Promise<PriceData> {

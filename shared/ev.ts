@@ -19,7 +19,7 @@
  * 지역 제한 없이 아무 데서나 드롭되는 전역 풀 카드는 모든 지도에 공통이므로 제외하고,
  * 지도 전용 카드만 비교한다.
  */
-import type { AreaPool, Calibration, CardInfo, MapInfo, PriceEntry } from './types';
+import type { AreaPool, Calibration, CardInfo, MapInfo, PriceEntry } from './types.js';
 
 export interface EvParams {
   /** 실행 지역 레벨 가정. 'base' = 지도 고유 레벨, 숫자 = 해당 등급으로 돌린다고 가정 */

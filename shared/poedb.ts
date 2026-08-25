@@ -5,7 +5,7 @@
  * 그대로 노출하는 사이트로, robots.txt 전면 허용이며 별도 API가 없어 HTML을 파싱한다.
  * 마크업이 바뀌면 여기만 고치면 되도록 파서를 한 곳에 모아둔다.
  */
-import type { AreaPool, CardInfo, MapInfo, PoolEntry, PriceEntry } from './types';
+import type { AreaPool, CardInfo, MapInfo, PoolEntry, PriceEntry } from './types.js';
 
 export type Locale = 'us' | 'kr';
 

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { buildDataset } from './_lib/dataset';
+import { buildDataset } from './_lib/dataset.js';
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
   try {

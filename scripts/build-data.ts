@@ -6,7 +6,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { crawlStaticData } from '../shared/sources';
+import { crawlStaticData } from '../shared/sources.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
