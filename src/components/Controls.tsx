@@ -117,15 +117,22 @@ export function Controls({ params, onParams, view, onView, calibration, onReset 
         <div className="field">
           <label>실행 등급 가정</label>
           <select
-            value={params.tierMode === 'base' ? 'base' : String(params.tierMode)}
-            onChange={(e) => set('tierMode', e.target.value === 'base' ? 'base' : Number(e.target.value))}
+            value={typeof params.tierMode === 'number' ? String(params.tierMode) : params.tierMode}
+            onChange={(e) => {
+              const value = e.target.value;
+              set('tierMode', value === 'base' || value === 'voidstone' ? value : Number(value));
+            }}
           >
-            <option value="base">각 지도 고유 등급</option>
+            <option value="voidstone">공허석 4개 (전부 16등급)</option>
+            <option value="base">공허석 없음 (지도 고유 등급)</option>
             {Array.from({ length: 17 }, (_, i) => i + 1).map((t) => (
               <option key={t} value={t}>{t}등급으로 돌린다고 가정</option>
             ))}
           </select>
-          <div className="hint">지역 레벨이 카드의 드롭 레벨보다 낮으면 그 카드는 나오지 않는다.</div>
+          <div className="hint">
+            지역 레벨이 카드의 드롭 레벨보다 낮으면 그 카드는 나오지 않는다. 공허석 4개면 아틀라스 전체가
+            16등급(지역 레벨 83)이 되고, 이 경우 잠기는 카드는 없다.
+          </div>
         </div>
       </div>
 

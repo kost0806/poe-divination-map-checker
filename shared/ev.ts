@@ -22,8 +22,14 @@
 import type { AreaPool, Calibration, CardInfo, MapInfo, PriceEntry } from './types.js';
 
 export interface EvParams {
-  /** 실행 지역 레벨 가정. 'base' = 지도 고유 레벨, 숫자 = 해당 등급으로 돌린다고 가정 */
-  tierMode: 'base' | number;
+  /**
+   * 실행 지역 레벨 가정.
+   * - 'voidstone': 공허석 4개를 낀 상태. 아틀라스 전체가 16등급(지역 레벨 83)이 되고,
+   *   17등급 지도는 원래 레벨(84)을 유지한다.
+   * - 'base': 공허석 없이 각 지도 고유 등급
+   * - 숫자: 해당 등급으로 돌린다고 가정
+   */
+  tierMode: 'voidstone' | 'base' | number;
   /** 상대 드롭률의 근거 */
   weightSource: 'gold' | 'uniform' | 'volume';
   /** 희소성 지수 γ. 드롭률 ∝ 골드^(-γ) */
@@ -43,8 +49,11 @@ export interface EvParams {
 /** 희소성 지수 조절 범위. 실측 관측치(천벌 2700판에 1장 등)가 2 부근이라 넉넉히 잡는다 */
 export const GAMMA_BOUNDS = { min: 0.3, max: 5 };
 
+/** 공허석 4개를 모두 장착하면 아틀라스 전체가 16등급이 된다 */
+export const VOIDSTONE_TIER = 16;
+
 export const DEFAULT_PARAMS: EvParams = {
-  tierMode: 'base',
+  tierMode: 'voidstone',
   weightSource: 'gold',
   gamma: 1,
   cardsPerRun: 0.3,
@@ -181,6 +190,19 @@ export function tierLevels(maps: MapInfo[]): Map<number, number> {
   return out;
 }
 
+/** 등급 가정을 실제 지역 레벨로 환산한다 */
+export function effectiveAreaLevel(
+  map: MapInfo,
+  tierMode: EvParams['tierMode'],
+  tierLevel: Map<number, number>,
+): number {
+  const levelOf = (tier: number) => tierLevel.get(tier) ?? 67 + tier;
+  if (tierMode === 'base') return map.areaLevel;
+  // 공허석은 지도 등급을 끌어올릴 뿐 낮추지는 않으므로 원래 레벨이 더 높으면 그대로 둔다
+  if (tierMode === 'voidstone') return Math.max(map.areaLevel, levelOf(VOIDSTONE_TIER));
+  return levelOf(tierMode);
+}
+
 interface Refs {
   avgMobCount: number;
   avgClearing: number;
@@ -237,10 +259,7 @@ export function computeMapEv(
   params: EvParams,
   refs: Refs,
 ): MapEv {
-  const areaLevel =
-    params.tierMode === 'base'
-      ? map.areaLevel
-      : (refs.tierLevel.get(params.tierMode) ?? 67 + params.tierMode);
+  const areaLevel = effectiveAreaLevel(map, params.tierMode, refs.tierLevel);
   const { eligible, locked } = rowsFor(area, index, areaLevel);
 
   const base = eligible.map((e) => {
@@ -322,11 +341,7 @@ export function computeAll(input: EvInput, params: EvParams): MapEv[] {
   const mapAreas = input.areas.filter((a) => a.isMap && index.map.has(a.slug));
   const rawDrops = mapAreas.map((area) => {
     const map = index.map.get(area.slug)!;
-    const areaLevel =
-      params.tierMode === 'base'
-        ? map.areaLevel
-        : (tierLevel.get(params.tierMode) ?? 67 + params.tierMode);
-    const { eligible } = rowsFor(area, index, areaLevel);
+    const { eligible } = rowsFor(area, index, effectiveAreaLevel(map, params.tierMode, tierLevel));
     return eligible.reduce((acc, e) => {
       const key = normalizeName(e.entry.card);
       return (
