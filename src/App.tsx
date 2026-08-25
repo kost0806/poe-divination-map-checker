@@ -3,6 +3,7 @@ import {
   computeAll,
   DEFAULT_PARAMS,
   GAMMA_BOUNDS,
+  pinKey,
   solveGamma,
   type EvInput,
   type EvParams,
@@ -17,6 +18,7 @@ import { chaos, paybackRuns, round, timeAgo } from './lib/format';
 import { ko, shortMapName } from './lib/names';
 
 const FAV_KEY = 'poe-div-favourites';
+const PIN_KEY = 'poe-div-pinned-rates';
 
 const DEFAULT_VIEW: ViewOptions = {
   sort: 'evPerRun',
@@ -25,6 +27,15 @@ const DEFAULT_VIEW: ViewOptions = {
   query: '',
   favouritesOnly: false,
 };
+
+function loadPins(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(PIN_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
 
 function loadFavourites(): Set<string> {
   try {
@@ -38,7 +49,7 @@ function loadFavourites(): Set<string> {
 export function App() {
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [params, setParams] = useState<EvParams>(DEFAULT_PARAMS);
+  const [params, setParams] = useState<EvParams>({ ...DEFAULT_PARAMS, pinnedRates: loadPins() });
   const [view, setView] = useState<ViewOptions>(DEFAULT_VIEW);
   const [tab, setTab] = useState<'maps' | 'method'>('maps');
   const [selected, setSelected] = useState<string | null>(null);
@@ -55,6 +66,10 @@ export function App() {
   useEffect(() => {
     localStorage.setItem(FAV_KEY, JSON.stringify([...favourites]));
   }, [favourites]);
+
+  useEffect(() => {
+    localStorage.setItem(PIN_KEY, JSON.stringify(params.pinnedRates));
+  }, [params.pinnedRates]);
 
   // 상세는 표 위에 열리므로, 표 아래쪽 행을 눌렀을 때도 보이도록 스크롤한다
   useEffect(() => {
@@ -166,7 +181,8 @@ export function App() {
             onView={setView}
             calibration={dataset.calibration}
             onReset={() => {
-              setParams(DEFAULT_PARAMS);
+              // 실측 고정은 사용자가 직접 넣은 데이터라 초기화에서 건드리지 않는다
+              setParams((prev) => ({ ...DEFAULT_PARAMS, pinnedRates: prev.pinnedRates }));
               setView(DEFAULT_VIEW);
             }}
           />
@@ -239,6 +255,15 @@ export function App() {
                     if (gamma !== null) setParams((prev) => ({ ...prev, gamma }));
                     return gamma;
                   }}
+                  onPinRate={(card, dropsPerRun) =>
+                    setParams((prev) => {
+                      const next = { ...prev.pinnedRates };
+                      const key = pinKey(selectedRow.map.slug, card);
+                      if (dropsPerRun === null) delete next[key];
+                      else next[key] = dropsPerRun;
+                      return { ...prev, pinnedRates: next };
+                    })
+                  }
                 />
               </div>
             )}

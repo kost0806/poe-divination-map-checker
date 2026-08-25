@@ -11,6 +11,8 @@ interface Props {
   onCalibrateScale: (cardsPerRun: number) => void;
   /** 특정 카드 관측 → 희소성 지수 γ 역산. 재현 불가능하면 null 을 돌려준다 */
   onCalibrateGamma: (card: string, dropsPerRun: number) => number | null;
+  /** 특정 카드의 드롭률을 관측값으로 고정하거나(값 지정), 해제한다(null) */
+  onPinRate: (card: string, dropsPerRun: number | null) => void;
 }
 
 const layoutLabel = (v: boolean | null) => (v === null ? '-' : v ? '예' : '아니오');
@@ -32,6 +34,7 @@ export function MapDetail({
   params,
   onCalibrateScale,
   onCalibrateGamma,
+  onPinRate,
 }: Props) {
   const { map } = row;
   const [target, setTarget] = useState('__all__');
@@ -64,9 +67,16 @@ export function MapDetail({
     const gamma = onCalibrateGamma(target, observedRate);
     setResult(
       gamma === null
-        ? '이 관측을 재현하는 γ가 조절 범위 밖이다. 지도당 카드 수를 먼저 조정해 볼 것'
-        : `희소성 지수 γ를 ${gamma.toFixed(2)}로 맞췄다`,
+        ? '이 관측을 재현하는 γ가 조절 범위 밖이다. 이 카드만 고정하는 쪽이 낫다'
+        : `희소성 지수 γ를 ${gamma.toFixed(2)}로 맞췄다. 다른 카드의 빈도도 함께 바뀐다`,
     );
+  };
+
+  /** 공식을 건드리지 않고 이 카드만 관측값으로 고정한다 */
+  const pin = () => {
+    if (!observable || target === '__all__' || observedRate <= 0) return;
+    onPinRate(target, observedRate);
+    setResult(`${ko(targetRow?.cardKo, target)} 를 ${frequency(1 / observedRate)} 로 고정했다`);
   };
   return (
     <div className="panel detail" style={{ marginTop: 0 }}>
@@ -142,7 +152,18 @@ export function MapDetail({
                   {c.noPrice ? <span className="dim">-</span> : chaos(c.chaos, divineChaos)}
                 </td>
                 <td className="num dim">{c.goldFee ?? '-'}</td>
-                <td className="num">{frequency(c.runsPerDrop)}</td>
+                <td className="num">
+                  {frequency(c.runsPerDrop)}
+                  {c.pinned && (
+                    <button
+                      className="linkBtn pinMark"
+                      title="실측으로 고정된 값. 눌러서 해제"
+                      onClick={() => onPinRate(c.card, null)}
+                    >
+                      실측
+                    </button>
+                  )}
+                </td>
                 <td className="num">
                   {percent(c.share)}
                   <div className="bar">
@@ -193,8 +214,13 @@ export function MapDetail({
         />
         <span className="small dim">장</span>
         <button disabled={!observable} onClick={apply}>
-          이 값으로 보정
+          {target === '__all__' ? '지도당 카드 수 보정' : 'γ 맞추기'}
         </button>
+        {target !== '__all__' && (
+          <button disabled={!observable || observedRate <= 0} onClick={pin}>
+            이 카드만 고정
+          </button>
+        )}
         <span className="small dim">
           {result ??
             (observable

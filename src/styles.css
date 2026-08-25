@@ -124,3 +124,6 @@ tbody tr.selected { background: #232838; }
 
 .cardLink { color: var(--text); text-decoration: none; border-bottom: 1px dotted var(--line); }
 .cardLink:hover { color: var(--accent); border-bottom-color: var(--accent-dim); }
+
+.pinMark { margin-left: 6px; font-size: 10px; padding: 0 4px; border: 1px solid var(--accent-dim);
+  border-radius: 3px; text-decoration: none; }

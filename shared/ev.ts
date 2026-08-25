@@ -41,6 +41,18 @@ export interface EvParams {
   weightSource: 'gold' | 'uniform' | 'volume';
   /** 희소성 지수 γ. 드롭률 ∝ 골드^(-γ) */
   gamma: number;
+  /**
+   * 시세 지수 β. 드롭률 ∝ 시세^(-β) 를 곱한다.
+   * 골드 수수료는 카드가 설계될 때 정해진 정적 값이라 이번 리그의 실제 시세를 반영하지 못한다.
+   * 특히 고가 카드 구간에서 해상도가 없어(천벌 1350 vs 약제사 1100, 시세는 17배 차이)
+   * 골드만으로는 구분이 안 되므로 시세를 함께 쓸 수 있게 열어 둔다.
+   */
+  priceExponent: number;
+  /**
+   * 실측으로 고정한 카드별 드롭률. 키는 `지도슬러그|카드영문명`, 값은 지도 1회당 기대 개수.
+   * 공식이 맞지 않는 카드를 직접 관측값으로 덮어쓴다.
+   */
+  pinnedRates: Record<string, number>;
   /** 평균적인 지도 1회당 전용 카드 드롭 기대 개수 (절대 수익 환산 스케일) */
   cardsPerRun: number;
   /** 몬스터 밀도(Mob Count)로 드롭량 보정 */
@@ -88,6 +100,8 @@ export const DEFAULT_PARAMS: EvParams = {
   tierMode: 'voidstone',
   weightSource: 'gold',
   gamma: 1,
+  priceExponent: 0,
+  pinnedRates: {},
   cardsPerRun: 0.3,
   scaleByDensity: true,
   minutesPerRun: 4,
@@ -119,6 +133,8 @@ export interface CardRow {
   dropsPerRun: number;
   /** 몇 회 실행당 1장 꼴인지 (체감 검증용) */
   runsPerDrop: number;
+  /** 공식 대신 실측 관측값으로 고정된 카드인지 */
+  pinned: boolean;
   /** 지도 1회당 기대 기여 수익(카오스) */
   contribution: number;
   /** 이 지도 기대 수익에서 차지하는 비중 */
@@ -262,15 +278,23 @@ interface Refs {
 }
 
 function weightOf(
-  source: EvParams['weightSource'],
-  gamma: number,
+  params: EvParams,
   gold: number,
+  chaos: number,
   volume: number,
   areaCount: number,
 ): number {
-  if (source === 'uniform') return 1;
-  if (source === 'volume') return volume / Math.max(areaCount, 1);
-  return Math.pow(Math.max(gold, 1), -gamma);
+  if (params.weightSource === 'uniform') return 1;
+  if (params.weightSource === 'volume') return volume / Math.max(areaCount, 1);
+  return (
+    Math.pow(Math.max(gold, 1), -params.gamma) *
+    Math.pow(Math.max(chaos, 1), -params.priceExponent)
+  );
+}
+
+/** 실측 고정 키 */
+export function pinKey(mapSlug: string, card: string): string {
+  return `${mapSlug}|${card}`;
 }
 
 function rowsFor(area: AreaPool, index: Index, areaLevel: number) {
@@ -331,7 +355,9 @@ export function computeMapEv(
       reward: e.info?.reward ?? null,
       rewardKo: e.info?.rewardKo ?? null,
       areaCount,
-      weight: weightOf(params.weightSource, params.gamma, gold, volume, areaCount),
+      weight: weightOf(params, gold, e.price?.chaos ?? 0, volume, areaCount),
+      /** 실측으로 고정된 드롭률이 있으면 공식 대신 그 값을 쓴다 */
+      pinned: params.pinnedRates[pinKey(map.slug, e.entry.card)],
     };
   });
 
@@ -350,26 +376,33 @@ export function computeMapEv(
       ? refs.avgClearing / map.clearingAbility
       : 1;
 
-  const cardsPerRun = relativeDrops * scale * density;
-  const evPerRun = relativeValue * scale * density;
   const minutesPerRun = params.minutesPerRun * speed;
-  // 예지 비용을 지도 1회당 기대 수익으로 나누면 본전까지 필요한 판수가 된다
-  const scryingChaos = index.scrying.get(map.slug)?.chaos ?? null;
-  const paybackRuns = scryingChaos !== null && evPerRun > 0 ? scryingChaos / evPerRun : null;
 
-  const cards: CardRow[] = base
+  const rows = base
     .map((c) => {
-      const dropsPerRun = c.weight * scale * density;
-      const contribution = dropsPerRun * c.chaos;
+      // 실측으로 고정된 카드는 전역 스케일과 밀도 보정을 거치지 않고 관측값을 그대로 쓴다
+      const dropsPerRun = c.pinned !== undefined ? c.pinned : c.weight * scale * density;
       return {
         ...c,
+        pinned: c.pinned !== undefined,
         dropsPerRun,
         runsPerDrop: dropsPerRun > 0 ? 1 / dropsPerRun : Infinity,
-        contribution,
-        share: evPerRun > 0 ? contribution / evPerRun : 0,
+        contribution: dropsPerRun * c.chaos,
       };
     })
     .sort((a, b) => b.contribution - a.contribution);
+
+  // 고정된 카드가 섞이면 공식 합계와 달라지므로 실제 행에서 다시 모은다
+  const cardsPerRun = rows.reduce((a, r) => a + r.dropsPerRun, 0);
+  const evPerRun = rows.reduce((a, r) => a + r.contribution, 0);
+  const cards: CardRow[] = rows.map((r) => ({
+    ...r,
+    share: evPerRun > 0 ? r.contribution / evPerRun : 0,
+  }));
+
+  // 예지 비용을 지도 1회당 기대 수익으로 나누면 본전까지 필요한 판수가 된다
+  const scryingChaos = index.scrying.get(map.slug)?.chaos ?? null;
+  const paybackRuns = scryingChaos !== null && evPerRun > 0 ? scryingChaos / evPerRun : null;
 
   return {
     map,
@@ -382,7 +415,7 @@ export function computeMapEv(
     evPerRun,
     evPerHour: minutesPerRun > 0 ? (evPerRun * 60) / minutesPerRun : 0,
     minutesPerRun,
-    valuePerCard: relativeDrops > 0 ? relativeValue / relativeDrops : 0,
+    valuePerCard: cardsPerRun > 0 ? evPerRun / cardsPerRun : 0,
     scryingChaos,
     paybackRuns,
     paybackMinutes: paybackRuns !== null ? paybackRuns * minutesPerRun : null,
@@ -408,9 +441,9 @@ export function computeAll(input: EvInput, params: EvParams): MapEv[] {
       return (
         acc +
         weightOf(
-          params.weightSource,
-          params.gamma,
+          params,
           e.info?.goldFee ?? index.medianGold,
+          e.price?.chaos ?? 0,
           e.price?.volume ?? 0,
           index.areaCount.get(key) ?? 1,
         )

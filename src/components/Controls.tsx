@@ -93,6 +93,23 @@ export function Controls({ params, onParams, view, onView, calibration, onReset 
         {params.weightSource === 'gold' && (
           <div className="field">
             <label>
+              시세 지수 β <span className="value">{params.priceExponent.toFixed(2)}</span>
+            </label>
+            <input
+              type="range" min={0} max={1.5} step={0.05} value={params.priceExponent}
+              onChange={(e) => set('priceExponent', Number(e.target.value))}
+            />
+            <div className="hint">
+              드롭률에 시세<sup>-β</sup> 를 함께 곱한다. 골드 수수료는 카드 설계 시점의 정적 값이라
+              고가 카드 구간에서 해상도가 없다(천벌 1350 vs 약제사 1100, 시세는 17배 차이). β를 올리면
+              비싼 카드가 더 희귀해지지만, 예지의 오브 시세와의 상관은 β=0.5 부근부터 급격히 떨어진다.
+            </div>
+          </div>
+        )}
+
+        {params.weightSource === 'gold' && (
+          <div className="field">
+            <label>
               희소성 지수 γ <span className="value">{params.gamma.toFixed(2)}</span>
             </label>
             <input
