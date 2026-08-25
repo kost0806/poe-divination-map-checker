@@ -6,6 +6,7 @@ import { MapDetail } from './components/MapDetail';
 import { MapTable } from './components/MapTable';
 import { Methodology } from './components/Methodology';
 import { chaos, round, timeAgo } from './lib/format';
+import { ko, shortMapName } from './lib/names';
 
 const FAV_KEY = 'poe-div-favourites';
 
@@ -39,13 +40,7 @@ export function App() {
   useEffect(() => {
     fetch('/api/dataset')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d: Dataset) => {
-        setDataset(d);
-        // 실측 γ를 기본값으로 채택한다 (표본이 너무 적으면 무시)
-        if (d.calibration && d.calibration.samples >= 20) {
-          setParams((p) => ({ ...p, gamma: Math.round(d.calibration!.gamma * 20) / 20 }));
-        }
-      })
+      .then((d: Dataset) => setDataset(d))
       .catch((e: unknown) => setError(String(e)));
   }, []);
 
@@ -82,8 +77,9 @@ export function App() {
       if (!q) return true;
       return (
         r.map.name.toLowerCase().includes(q) ||
-        r.cards.some((c) => c.card.toLowerCase().includes(q)) ||
-        r.locked.some((c) => c.card.toLowerCase().includes(q))
+        (r.map.nameKo ?? '').toLowerCase().includes(q) ||
+        r.cards.some((c) => c.card.toLowerCase().includes(q) || (c.cardKo ?? '').includes(q)) ||
+        r.locked.some((c) => c.card.toLowerCase().includes(q) || (c.cardKo ?? '').includes(q))
       );
     });
     const key = view.sort;
@@ -119,24 +115,24 @@ export function App() {
   return (
     <div className="app">
       <header className="top">
-        <h1>맵별 디비네이션 카드 기대수익</h1>
+        <h1>지도별 점술 카드 기대 수익</h1>
         <div className="meta">
           <span>리그 <b>{dataset.league?.id ?? '알 수 없음'}</b></span>
-          <span>1 디바인 = <b>{round(div)}</b> 카오스</span>
+          <span>1 신성한 오브 = <b>{round(div)}</b> 카오스 오브</span>
           <span>시세 <b>{timeAgo(dataset.prices.fetchedAt)}</b></span>
-          <span>맵 <b>{all.length}</b>개</span>
+          <span>지도 <b>{all.length}</b>개</span>
         </div>
       </header>
 
       {dataset.stale && (
         <div className="banner">
-          실시간 시세 조회에 실패해 저장된 스냅샷({timeAgo(dataset.prices.fetchedAt)})으로 계산 중입니다.
+          실시간 시세 조회에 실패해 저장된 스냅숏({timeAgo(dataset.prices.fetchedAt)})으로 계산 중입니다.
         </div>
       )}
 
       <div className="tabs">
         <button className={tab === 'maps' ? 'active' : ''} onClick={() => setTab('maps')}>
-          맵 순위
+          지도 순위
         </button>
         <button className={tab === 'method' ? 'active' : ''} onClick={() => setTab('method')}>
           계산 방식과 한계
@@ -154,12 +150,7 @@ export function App() {
             onView={setView}
             calibration={dataset.calibration}
             onReset={() => {
-              setParams({
-                ...DEFAULT_PARAMS,
-                gamma: dataset.calibration
-                  ? Math.round(dataset.calibration.gamma * 20) / 20
-                  : DEFAULT_PARAMS.gamma,
-              });
+              setParams(DEFAULT_PARAMS);
               setView(DEFAULT_VIEW);
             }}
           />
@@ -172,11 +163,11 @@ export function App() {
                   <table>
                     <thead>
                       <tr>
-                        <th>맵</th>
-                        <th style={{ width: 44 }}>티어</th>
+                        <th>지도</th>
+                        <th style={{ width: 52 }}>등급</th>
                         <th className="num">1회당</th>
                         <th className="num">시간당</th>
-                        <th>주력 카드</th>
+                        <th>주력 점술 카드</th>
                         <th style={{ width: 28 }}></th>
                       </tr>
                     </thead>
@@ -185,11 +176,11 @@ export function App() {
                         .sort((a, b) => b.evPerRun - a.evPerRun)
                         .map((r) => (
                           <tr key={r.map.slug} className="clickable" onClick={() => setSelected(r.map.slug)}>
-                            <td>{r.map.name.replace(/ Map$/, '')}</td>
-                            <td><span className="tier">T{r.map.tier}</span></td>
+                            <td>{shortMapName(r.map.nameKo, r.map.name)}</td>
+                            <td><span className="tier">{r.map.tier}</span></td>
                             <td className="num chaos">{chaos(r.evPerRun, div)}</td>
                             <td className="num">{chaos(r.evPerHour, div)}</td>
-                            <td className="small dim">{r.cards[0]?.card ?? '-'}</td>
+                            <td className="small dim">{r.cards[0] ? ko(r.cards[0].cardKo, r.cards[0].card) : '-'}</td>
                             <td>
                               <button
                                 className="fav on"

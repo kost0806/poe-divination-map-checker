@@ -1,10 +1,10 @@
-/** 카오스 값을 상황에 맞게 카오스/디바인으로 표기 */
+/** 카오스 오브 기준 값을 크기에 따라 카오스/신성한 오브로 표기 */
 export function chaos(value: number, divineChaos: number): string {
   if (!Number.isFinite(value)) return '-';
   if (divineChaos > 0 && value >= divineChaos * 0.9) {
-    return `${round(value / divineChaos)} div`;
+    return `${round(value / divineChaos)} 신성`;
   }
-  return `${round(value)} c`;
+  return `${round(value)} 카오스`;
 }
 
 export function round(value: number): string {
@@ -17,7 +17,7 @@ export function round(value: number): string {
   return value.toFixed(3);
 }
 
-/** "1/37회" 처럼 드랍 빈도를 사람이 읽는 형태로 */
+/** "1/37회" 처럼 드롭 빈도를 사람이 읽는 형태로 */
 export function frequency(runsPerDrop: number): string {
   if (!Number.isFinite(runsPerDrop)) return '-';
   if (runsPerDrop < 1) return `${round(1 / runsPerDrop)}장/회`;

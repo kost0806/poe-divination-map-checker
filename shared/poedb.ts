@@ -1,13 +1,20 @@
 /**
  * PoEDB(poedb.tw) HTML 파서.
  *
- * PoEDB는 게임 클라이언트 데이터(.dat/.it)와 인게임 커런시 익스체인지 시세를
+ * PoEDB는 게임 클라이언트 데이터(.dat/.it)와 인게임 화폐 거래소 시세를
  * 그대로 노출하는 사이트로, robots.txt 전면 허용이며 별도 API가 없어 HTML을 파싱한다.
  * 마크업이 바뀌면 여기만 고치면 되도록 파서를 한 곳에 모아둔다.
  */
 import type { AreaPool, CardInfo, MapInfo, PoolEntry, PriceEntry } from './types';
 
-export const POEDB_BASE = 'https://poedb.tw/us';
+export type Locale = 'us' | 'kr';
+
+/** PoEDB는 언어별로 같은 슬러그를 쓰므로 로케일만 갈아끼우면 공식 번역명을 얻는다 */
+export function poedbBase(locale: Locale = 'us'): string {
+  return `https://poedb.tw/${locale}`;
+}
+
+export const POEDB_BASE = poedbBase('us');
 
 const stripTags = (s: string) => s.replace(/<[^>]+>/g, ' ');
 
@@ -48,11 +55,11 @@ function toNumber(s: string): number | null {
 }
 
 /* ------------------------------------------------------------------ *
- * /us/Divination_Cards — 지역별 드랍 카드 목록
+ * /us/Divination_Cards — 지역별 드롭 카드 목록
  * ------------------------------------------------------------------ */
 
 /**
- * "The Doctor (tier 7+)" 형태의 조건을 최소 티어로 변환한다.
+ * "The Doctor (tier 7+)" 형태의 조건을 최소 등급로 변환한다.
  * 조건이 없거나 해석 불가면 1(제한 없음).
  */
 function parseTierCondition(condition: string | null): number {
@@ -86,6 +93,7 @@ export function parseAreaCards(html: string): AreaPool[] {
 
     out.push({
       name: text(label),
+      nameKo: null,
       slug,
       isMap: className.split(/\s+/).includes('Map'),
       cards,
@@ -96,7 +104,7 @@ export function parseAreaCards(html: string): AreaPool[] {
 }
 
 /* ------------------------------------------------------------------ *
- * /us/Economy_* — 커런시 익스체인지 시세
+ * /us/Economy_* — 화폐 거래소 시세
  * ------------------------------------------------------------------ */
 
 /**
@@ -150,7 +158,7 @@ export function parseEconomyTable(html: string): RawEconomyRow[] {
   return out;
 }
 
-/** 디바인/카오스 이외 통화로 표기된 항목은 환산 불가로 제외한다 */
+/** 신성한 오브/카오스 오브 이외 통화로 표기된 항목은 환산 불가로 제외한다 */
 export function toPriceEntries(raw: RawEconomyRow[], divineChaos: number): PriceEntry[] {
   const out: PriceEntry[] = [];
   for (const r of raw) {
@@ -168,17 +176,17 @@ export function toPriceEntries(raw: RawEconomyRow[], divineChaos: number): Price
   return out;
 }
 
-/** 커런시 시세표에서 1 디바인 = ? 카오스를 추출 */
+/** 화폐 시세표에서 1 신성한 오브 = ? 카오스 오브를 추출 */
 export function parseDivineChaos(html: string): number {
   for (const r of parseEconomyTable(html)) {
     if (r.slug === 'divine' && r.unit === 'chaos') return r.value;
     if (r.slug === 'chaos' && r.unit === 'divine' && r.value > 0) return 1 / r.value;
   }
-  throw new Error('Economy_Currency: 디바인-카오스 환율을 찾지 못했습니다');
+  throw new Error('Economy_Currency: 신성한 오브-카오스 오브 환율을 찾지 못했습니다');
 }
 
 /* ------------------------------------------------------------------ *
- * 개별 아이템 페이지 (맵 / 카드)
+ * 개별 아이템 페이지 (지도 / 카드)
  * ------------------------------------------------------------------ */
 
 /** `<tr><td>키</td><td>값</td></tr>` 속성 표를 사전으로 만든다 */
@@ -194,6 +202,15 @@ function attributeMap(html: string): Map<string, string> {
   return out;
 }
 
+/** 한국어판은 일부 속성 키가 번역돼 있어(레벨, 보스) 후보 키를 순서대로 찾는다 */
+function pick(attr: Map<string, string>, ...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = attr.get(key);
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
 const num = (v: string | undefined) => (v === undefined ? null : toNumber(text(v)));
 const list = (v: string | undefined) =>
   v === undefined ? [] : text(v).split(',').map((s) => s.trim()).filter(Boolean);
@@ -205,21 +222,31 @@ const flag = (v: string | undefined) => {
 
 export function parseMapPage(html: string, name: string, slug: string): MapInfo {
   const attr = attributeMap(html);
-  const areaLevel = num(attr.get('Level'));
+  const areaLevel = num(pick(attr, 'Level', '레벨'));
   const tier = num(attr.get('MapTier'));
   return {
     name,
+    nameKo: null,
     slug,
-    // MapTier 속성이 아틀라스 기본 티어. 없으면 지역 레벨에서 역산(T1 = 68)
+    // MapTier 속성이 아틀라스 기본 등급. 없으면 지역 레벨에서 역산(1등급 = 68)
     tier: tier ?? (areaLevel !== null ? Math.max(1, areaLevel - 67) : 0),
     areaLevel: areaLevel ?? 0,
-    boss: attr.has('Boss') ? text(attr.get('Boss')!) || null : null,
-    bossDifficulty: num(attr.get('Boss Difficulty')),
-    mobCount: num(attr.get('Mob Count')),
-    clearingAbility: num(attr.get('Clearing Ability')),
-    tileset: attr.has('Tileset') ? text(attr.get('Tileset')!) || null : null,
+    boss: (() => {
+      const value = pick(attr, 'Boss', '보스');
+      return value ? text(value) || null : null;
+    })(),
+    bossKo: null,
+    bossDifficulty: num(pick(attr, 'Boss Difficulty')),
+    mobCount: num(pick(attr, 'Mob Count')),
+    clearingAbility: num(pick(attr, 'Clearing Ability')),
+    tileset: (() => {
+      const value = pick(attr, 'Tileset', '타일세트');
+      return value ? text(value) || null : null;
+    })(),
+    tilesetKo: null,
     tags: list(attr.get('Tags')),
     linked: list(attr.get('Atlas Linked')),
+    linkedKo: [],
     layout: {
       fewObstacles: flag(attr.get('Few Obstacles')),
       bossNotInOwnRoom: flag(attr.get('Boss not in own room')),
@@ -247,14 +274,17 @@ export function parseCardPage(html: string, name: string, slug: string): CardInf
   const gold = attr.get('Currency Exchange');
   return {
     name,
+    nameKo: null,
     slug,
     noteCode: attr.has('NoteCode') ? text(attr.get('NoteCode')!) || null : null,
     stackSize: stack ? Number(stack[1]) : null,
     reward: explicit ? cleanItemText(explicit[1]) || null : reward ? text(reward) || null : null,
+    rewardKo: null,
     dropLevel: num(attr.get('DropLevel')),
     // "925 Gold" 형태로 표기된다
     goldFee: gold ? toNumber(text(gold).replace(/[^\d.]/g, '')) : null,
     flavourText: flavour ? cleanItemText(flavour[1]) || null : null,
+    flavourTextKo: null,
   };
 }
 

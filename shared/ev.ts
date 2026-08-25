@@ -1,38 +1,38 @@
 /**
- * 맵별 디비네이션 카드 기대수익 모델.
+ * 지도별 점술 카드 기대 수익 모델.
  *
  * ── 근거와 한계 ──────────────────────────────────────────────────────
- * GGG는 카드별 드랍 확률을 공개하지 않는다. 게임 데이터(dat) 1535개 테이블에도
+ * GGG는 카드별 드롭 확률을 공개하지 않는다. 게임 데이터(dat) 1535개 테이블에도
  * 카드 단위 가중치는 없고, 거래량으로 역산하는 것도 불가능하다 —
- * `거래량 = 드랍률 × Σ(그 카드가 나오는 맵들의 실행 횟수)` 라서 맵 인기도와
- * 드랍률이 분리되지 않는다(미지수가 방정식보다 많아 식별 불가).
+ * `거래량 = 드롭률 × Σ(그 카드가 나오는 지도들의 실행 횟수)` 라서 지도 인기도와
+ * 드롭률이 분리되지 않는다(미지수가 방정식보다 많아 식별 불가).
  *
- * 대신 커런시 익스체인지 골드 수수료(CurrencyExchange.GoldPurchaseFee)를 쓴다.
- * GGG가 아이템마다 직접 매긴 정적 값이라 시장 시세·맵 인기도와 무관하다.
- * 한 맵에서만 드랍되는 카드들끼리는 그 맵의 실행 횟수가 약분되므로 거래량 비율이
- * 상대 드랍률의 불편추정치가 되는데, 이걸로 검증하면
- * `log(거래량) ~ log(골드)` 기울기가 -1.005로 드랍률이 골드에 반비례한다.
+ * 대신 화폐 거래소 골드 수수료(CurrencyExchange.GoldPurchaseFee)를 쓴다.
+ * GGG가 아이템마다 직접 매긴 정적 값이라 시장 시세·지도 인기도와 무관하다.
+ * 한 지도에서만 드롭되는 카드들끼리는 그 지도의 실행 횟수가 약분되므로 거래량 비율이
+ * 상대 드롭률의 불편추정치가 되는데, 이걸로 검증하면
+ * `log(거래량) ~ log(골드)` 기울기가 -1.005로 드롭률이 골드에 반비례한다.
  *
- * 따라서 카드 c의 절대 드랍률을 `A · gold_c^(-γ)` 로 둔다. A는 모든 맵에 동일하게
- * 곱해지는 전역 상수이므로 맵 간 순위에는 영향이 없고, 절대 수익 환산에만 쓰인다.
+ * 따라서 카드 c의 절대 드롭률을 `A · gold_c^(-γ)` 로 둔다. A는 모든 지도에 동일하게
+ * 곱해지는 전역 상수이므로 지도 간 순위에는 영향이 없고, 절대 수익 환산에만 쓰인다.
  *
- * 지역 제한 없이 아무 데서나 드랍되는 전역 풀 카드는 모든 맵에 공통이므로 제외하고,
- * 맵 전용 카드만 비교한다.
+ * 지역 제한 없이 아무 데서나 드롭되는 전역 풀 카드는 모든 지도에 공통이므로 제외하고,
+ * 지도 전용 카드만 비교한다.
  */
 import type { AreaPool, Calibration, CardInfo, MapInfo, PriceEntry } from './types';
 
 export interface EvParams {
-  /** 실행 지역 레벨 가정. 'base' = 맵 고유 레벨, 숫자 = 해당 티어로 돌린다고 가정 */
+  /** 실행 지역 레벨 가정. 'base' = 지도 고유 레벨, 숫자 = 해당 등급으로 돌린다고 가정 */
   tierMode: 'base' | number;
-  /** 상대 드랍률의 근거 */
+  /** 상대 드롭률의 근거 */
   weightSource: 'gold' | 'uniform' | 'volume';
-  /** 희소성 지수 γ. 드랍률 ∝ 골드^(-γ) */
+  /** 희소성 지수 γ. 드롭률 ∝ 골드^(-γ) */
   gamma: number;
-  /** 평균적인 맵 1회당 전용 카드 드랍 기대 개수 (절대 수익 환산 스케일) */
+  /** 평균적인 지도 1회당 전용 카드 드롭 기대 개수 (절대 수익 환산 스케일) */
   cardsPerRun: number;
-  /** 몹 밀도(Mob Count)로 드랍량 보정 */
+  /** 몬스터 밀도(Mob Count)로 드롭량 보정 */
   scaleByDensity: boolean;
-  /** 기준 맵 1회 소요 시간(분) */
+  /** 기준 지도 1회 소요 시간(분) */
   minutesPerRun: number;
   /** 클리어 지표(Clearing Ability)로 소요 시간 보정 */
   scaleTimeByClearing: boolean;
@@ -53,7 +53,9 @@ export const DEFAULT_PARAMS: EvParams = {
 
 export interface CardRow {
   card: string;
-  /** 드랍에 필요한 지역 레벨 */
+  /** 공식 한국어 카드명 */
+  cardKo: string | null;
+  /** 드롭에 필요한 지역 레벨 */
   requiredLevel: number;
   chaos: number;
   /** 시세 조회 실패 (하한값 사용) */
@@ -62,38 +64,39 @@ export interface CardRow {
   volume: number;
   stackSize: number | null;
   reward: string | null;
-  /** 이 카드가 드랍되는 지역 수 */
+  rewardKo: string | null;
+  /** 이 카드가 드롭되는 지역 수 */
   areaCount: number;
-  /** 상대 드랍률 가중치 gold^(-γ) */
+  /** 상대 드롭률 가중치 gold^(-γ) */
   weight: number;
-  /** 맵 1회당 드랍 기대 개수 */
+  /** 지도 1회당 드롭 기대 개수 */
   dropsPerRun: number;
   /** 몇 회 실행당 1장 꼴인지 (체감 검증용) */
   runsPerDrop: number;
-  /** 맵 1회당 기대 기여 수익(카오스) */
+  /** 지도 1회당 기대 기여 수익(카오스) */
   contribution: number;
-  /** 이 맵 기대수익에서 차지하는 비중 */
+  /** 이 지도 기대 수익에서 차지하는 비중 */
   share: number;
 }
 
 export interface MapEv {
   map: MapInfo;
   effectiveAreaLevel: number;
-  /** 드랍 레벨 조건을 통과한 전용 카드 수 */
+  /** 드롭 레벨 조건을 통과한 전용 카드 수 */
   poolSize: number;
-  /** 지역 레벨이 낮아 잠긴 카드 */
-  locked: { card: string; requiredLevel: number; chaos: number }[];
-  /** 상대 드랍량 Σ gold^(-γ) */
+  /** 지역 레벨이 낮아 드롭되지 않는 카드 */
+  locked: { card: string; cardKo: string | null; requiredLevel: number; chaos: number }[];
+  /** 상대 드롭량 Σ gold^(-γ) */
   relativeDrops: number;
-  /** 상대 기대수익 Σ gold^(-γ) × 시세 — 맵 간 순위의 기준값 */
+  /** 상대 기대 수익 Σ gold^(-γ) × 시세 — 지도 간 순위의 기준값 */
   relativeValue: number;
-  /** 맵 1회당 전용 카드 드랍 기대 개수 */
+  /** 지도 1회당 전용 카드 드롭 기대 개수 */
   cardsPerRun: number;
-  /** 맵 1회당 기대수익(카오스) */
+  /** 지도 1회당 기대 수익(카오스) */
   evPerRun: number;
-  /** 시간당 기대수익(카오스) */
+  /** 시간당 기대 수익(카오스) */
   evPerHour: number;
-  /** 맵 1회 예상 소요 시간(분) */
+  /** 지도 1회 예상 소요 시간(분) */
   minutesPerRun: number;
   /** 전용 카드 1장당 평균 가치(카오스) */
   valuePerCard: number;
@@ -139,7 +142,7 @@ export function buildIndex(input: EvInput): Index {
   const card = new Map<string, CardInfo>();
   for (const c of input.cards) {
     card.set(normalizeName(c.name), c);
-    // NoteCode 는 커런시 익스체인지 슬러그와 같아, 이름 표기가 어긋날 때 대안 키가 된다
+    // NoteCode 는 화폐 거래소 슬러그와 같아, 이름 표기가 어긋날 때 대안 키가 된다
     if (c.noteCode && !price.has(normalizeName(c.name))) {
       const byNote = input.prices.find((p) => p.slug === c.noteCode);
       if (byNote) price.set(normalizeName(c.name), byNote);
@@ -166,7 +169,7 @@ export function buildIndex(input: EvInput): Index {
   };
 }
 
-/** 티어 → 지역 레벨. 데이터에 있는 실제 맵들의 값에서 만든다 */
+/** 등급 → 지역 레벨. 데이터에 있는 실제 지도들의 값에서 만든다 */
 export function tierLevels(maps: MapInfo[]): Map<number, number> {
   const out = new Map<number, number>();
   for (const m of maps) {
@@ -178,7 +181,7 @@ export function tierLevels(maps: MapInfo[]): Map<number, number> {
 interface Refs {
   avgMobCount: number;
   avgClearing: number;
-  /** 전체 맵 평균 상대 드랍량. 절대 개수 환산의 기준 */
+  /** 전체 지도 평균 상대 드롭량. 절대 개수 환산의 기준 */
   avgRelativeDrops: number;
   tierLevel: Map<number, number>;
 }
@@ -202,7 +205,7 @@ function rowsFor(area: AreaPool, index: Index, areaLevel: number) {
     price: PriceEntry | undefined;
     requiredLevel: number;
   }[] = [];
-  const locked: { card: string; requiredLevel: number; chaos: number }[] = [];
+  const locked: { card: string; cardKo: string | null; requiredLevel: number; chaos: number }[] = [];
 
   for (const entry of area.cards) {
     const key = normalizeName(entry.card);
@@ -211,7 +214,12 @@ function rowsFor(area: AreaPool, index: Index, areaLevel: number) {
     // PoEDB의 "tier N+" 표기는 카드 DropLevel에서 유도된 값이므로 원본인 DropLevel을 쓴다
     const requiredLevel = info?.dropLevel ?? entry.minTier + 68;
     if (requiredLevel > areaLevel) {
-      locked.push({ card: entry.card, requiredLevel, chaos: price?.chaos ?? 0 });
+      locked.push({
+        card: entry.card,
+        cardKo: info?.nameKo ?? null,
+        requiredLevel,
+        chaos: price?.chaos ?? 0,
+      });
       continue;
     }
     eligible.push({ entry, info, price, requiredLevel });
@@ -239,6 +247,7 @@ export function computeMapEv(
     const areaCount = index.areaCount.get(key) ?? 1;
     return {
       card: e.entry.card,
+      cardKo: e.info?.nameKo ?? null,
       requiredLevel: e.requiredLevel,
       chaos: e.price ? e.price.chaos : params.priceFloorChaos,
       noPrice: !e.price,
@@ -246,6 +255,7 @@ export function computeMapEv(
       volume,
       stackSize: e.info?.stackSize ?? null,
       reward: e.info?.reward ?? null,
+      rewardKo: e.info?.rewardKo ?? null,
       areaCount,
       weight: weightOf(params.weightSource, params.gamma, gold, volume, areaCount),
     };
@@ -254,8 +264,8 @@ export function computeMapEv(
   const relativeDrops = base.reduce((a, c) => a + c.weight, 0);
   const relativeValue = base.reduce((a, c) => a + c.weight * c.chaos, 0);
 
-  // 전역 상수 A: "평균적인 맵 1회당 전용 카드 cardsPerRun장" 이 되도록 스케일을 맞춘다.
-  // 모든 맵에 동일하게 곱해지므로 순위에는 영향이 없다.
+  // 전역 상수 A: "평균적인 지도 1회당 전용 카드 cardsPerRun장" 이 되도록 스케일을 맞춘다.
+  // 모든 지도에 동일하게 곱해지므로 순위에는 영향이 없다.
   const scale = refs.avgRelativeDrops > 0 ? params.cardsPerRun / refs.avgRelativeDrops : 0;
   const density =
     params.scaleByDensity && map.mobCount && refs.avgMobCount > 0
@@ -305,7 +315,7 @@ export function computeAll(input: EvInput, params: EvParams): MapEv[] {
   const index = buildIndex(input);
   const tierLevel = tierLevels(input.maps);
 
-  // 스케일 기준이 되는 평균 상대 드랍량은 파라미터에 따라 달라지므로 매번 다시 구한다
+  // 스케일 기준이 되는 평균 상대 드롭량은 파라미터에 따라 달라지므로 매번 다시 구한다
   const mapAreas = input.areas.filter((a) => a.isMap && index.map.has(a.slug));
   const rawDrops = mapAreas.map((area) => {
     const map = index.map.get(area.slug)!;
@@ -346,8 +356,8 @@ export function computeAll(input: EvInput, params: EvParams): MapEv[] {
  * ------------------------------------------------------------------ */
 
 /**
- * 한 맵에서만 드랍되는 카드들끼리는 그 맵의 실행 횟수가 공통이라 약분되므로,
- * 이들의 거래량 비율은 상대 드랍률의 불편추정치다. 맵별로 중심화한 뒤
+ * 한 지도에서만 드롭되는 카드들끼리는 그 지도의 실행 횟수가 공통이라 약분되므로,
+ * 이들의 거래량 비율은 상대 드롭률의 불편추정치다. 지도별로 중심화한 뒤
  * log(거래량) ~ log(골드) 회귀 기울기를 모으면 γ = -기울기 를 얻는다.
  *
  * 주의: 거래량이 0인 카드는 회귀에서 빠지는데 그런 카드는 대개 흔한 저가 카드다.
