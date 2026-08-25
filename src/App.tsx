@@ -2,9 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   computeAll,
   DEFAULT_PARAMS,
-  GAMMA_BOUNDS,
   pinKey,
-  solveGamma,
   type EvInput,
   type EvParams,
   type MapEv,
@@ -14,14 +12,14 @@ import { Controls, type ViewOptions } from './components/Controls';
 import { MapDetail } from './components/MapDetail';
 import { MapTable } from './components/MapTable';
 import { Methodology } from './components/Methodology';
-import { chaos, paybackRuns, round, timeAgo } from './lib/format';
+import { indexValue, round, timeAgo } from './lib/format';
 import { ko, shortMapName } from './lib/names';
 
 const FAV_KEY = 'poe-div-favourites';
 const PIN_KEY = 'poe-div-pinned-rates';
 
 const DEFAULT_VIEW: ViewOptions = {
-  sort: 'evPerRun',
+  sort: 'index',
   minTier: 1,
   maxTier: 16,
   query: '',
@@ -111,12 +109,10 @@ export function App() {
     });
     const key = view.sort;
     return [...filtered].sort((a, b) => {
-      if (key === 'tier') return b.map.tier - a.map.tier || b.evPerRun - a.evPerRun;
-      // 회수 판수는 작을수록 좋고, 예지 비용을 모르는 지도는 뒤로 보낸다
-      if (key === 'paybackRuns') {
-        return (a.paybackRuns ?? Infinity) - (b.paybackRuns ?? Infinity);
-      }
-      return b[key] - a[key];
+      if (key === 'tier') return b.map.tier - a.map.tier || b.index - a.index;
+      // 회수는 작을수록 좋고, 예지 비용을 모르는 지도는 뒤로 보낸다
+      if (key === 'paybackIndex') return (a.paybackIndex ?? Infinity) - (b.paybackIndex ?? Infinity);
+      return b.index - a.index;
     });
   }, [all, view, favourites]);
 
@@ -180,7 +176,8 @@ export function App() {
             onParams={setParams}
             view={view}
             onView={setView}
-            calibration={dataset.calibration}
+            pinCount={Object.keys(params.pinnedRates).length}
+            onClearPins={() => setParams((prev) => ({ ...prev, pinnedRates: {} }))}
             onReset={() => {
               // 실측 고정은 사용자가 직접 넣은 데이터라 초기화에서 건드리지 않는다
               setParams((prev) => ({ ...DEFAULT_PARAMS, pinnedRates: prev.pinnedRates }));
@@ -198,8 +195,7 @@ export function App() {
                       <tr>
                         <th>지도</th>
                         <th style={{ width: 52 }}>등급</th>
-                        <th className="num">1회당</th>
-                        <th className="num">시간당</th>
+                        <th className="num">기대 지표</th>
                         <th className="num">회수</th>
                         <th>주력 점술 카드</th>
                         <th style={{ width: 28 }}></th>
@@ -207,15 +203,14 @@ export function App() {
                     </thead>
                     <tbody>
                       {[...favRows]
-                        .sort((a, b) => b.evPerRun - a.evPerRun)
+                        .sort((a, b) => b.index - a.index)
                         .map((r) => (
                           <tr key={r.map.slug} className="clickable" onClick={() => setSelected(r.map.slug)}>
                             <td>{shortMapName(r.map.nameKo, r.map.name)}</td>
                             <td><span className="tier">{r.map.tier}</span></td>
-                            <td className="num chaos">{chaos(r.evPerRun, div)}</td>
-                            <td className="num">{chaos(r.evPerHour, div)}</td>
+                            <td className="num chaos">{indexValue(r.index)}</td>
                             <td className="num dim">
-                              {paybackRuns(r.paybackRuns)}
+                              {r.paybackIndex === null ? '-' : round(r.paybackIndex)}
                             </td>
                             <td className="small dim">{r.cards[0] ? ko(r.cards[0].cardKo, r.cards[0].card) : '-'}</td>
                             <td>
@@ -242,20 +237,6 @@ export function App() {
                 <MapDetail
                   row={selectedRow}
                   divineChaos={div}
-                  params={params}
-                  onCalibrateScale={(cardsPerRun) => setParams((prev) => ({ ...prev, cardsPerRun }))}
-                  onCalibrateGamma={(card, dropsPerRun) => {
-                    const gamma = solveGamma(
-                      evInput!,
-                      params,
-                      selectedRow.map.slug,
-                      card,
-                      dropsPerRun,
-                      GAMMA_BOUNDS,
-                    );
-                    if (gamma !== null) setParams((prev) => ({ ...prev, gamma }));
-                    return gamma;
-                  }}
                   onPinRate={(card, dropsPerRun) =>
                     setParams((prev) => {
                       const next = { ...prev.pinnedRates };

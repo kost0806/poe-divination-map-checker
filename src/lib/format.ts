@@ -17,11 +17,11 @@ export function round(value: number): string {
   return value.toFixed(3);
 }
 
-/** "1/37회" 처럼 드롭 빈도를 사람이 읽는 형태로 */
-export function frequency(runsPerDrop: number): string {
-  if (!Number.isFinite(runsPerDrop)) return '-';
-  if (runsPerDrop < 1) return `${round(1 / runsPerDrop)}장/회`;
-  return `1/${Math.round(runsPerDrop)}회`;
+/** "1/37판" 처럼 드롭 빈도를 사람이 읽는 형태로 */
+export function frequency(mapsPerDrop: number): string {
+  if (!Number.isFinite(mapsPerDrop)) return '-';
+  if (mapsPerDrop < 1) return `${round(1 / mapsPerDrop)}장/판`;
+  return `1/${Math.round(mapsPerDrop)}판`;
 }
 
 export function percent(value: number): string {
@@ -46,9 +46,8 @@ export function formatMinutes(minutes: number | null): string {
   return hours < 24 ? `${round(hours)}시간` : `${round(hours / 24)}일`;
 }
 
-/** 회수 판수 표기. 한 판이면 이미 본전이라 소수점을 보여줄 이유가 없다 */
-export function paybackRuns(runs: number | null): string {
-  if (runs === null || !Number.isFinite(runs)) return '-';
-  if (runs < 1) return '1판 미만';
-  return `${round(runs)}판`;
+/** 비교 지표 표기 */
+export function indexValue(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '-';
+  return round(value);
 }

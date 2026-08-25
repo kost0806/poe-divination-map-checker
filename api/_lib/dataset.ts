@@ -5,7 +5,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { calibrateGamma } from '../../shared/ev.js';
 import { fetchCurrentLeague, fetchPrices, fetchScryingOrbs } from '../../shared/sources.js';
 import type {
   Dataset,
@@ -104,12 +103,5 @@ export async function buildDataset(): Promise<Dataset> {
     scrying,
     league,
     stale: priceStale,
-    calibration: calibrateGamma({
-      areas: staticData.areas,
-      maps: staticData.maps,
-      cards: staticData.cards,
-      prices: prices.prices,
-      weights: staticData.weights,
-    }),
   };
 }

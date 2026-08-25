@@ -291,11 +291,25 @@ export async function fetchCardWeights(): Promise<WeightData> {
 
   const cards: CardWeight[] = raw.map((r) => {
     if (r.weight && r.weight > 0) {
-      return { name: r.name, weight: r.weight, source: 'measured', bucket: r.bucket, bossOnly: r.bossOnly };
+      return {
+        name: r.name,
+        weight: r.weight,
+        source: 'measured',
+        bucket: r.bucket,
+        gold: r.gold,
+        bossOnly: r.bossOnly,
+      };
     }
     // 표본이 0 이라는 사실 자체가 상한을 준다. 골드 추정치와 상한 중 작은 쪽을 쓴다
     const guess = r.gold ? Math.min(fromGold(r.gold), detectionBound) : detectionBound;
-    return { name: r.name, weight: guess, source: 'bucket', bucket: r.bucket, bossOnly: r.bossOnly };
+    return {
+      name: r.name,
+      weight: guess,
+      source: 'bucket',
+      bucket: r.bucket,
+      gold: r.gold,
+      bossOnly: r.bossOnly,
+    };
   });
 
   return {
@@ -303,6 +317,7 @@ export async function fetchCardWeights(): Promise<WeightData> {
     patches: WEIGHT_PATCHES,
     totalSamples,
     detectionBound,
+    totalWeight: cards.reduce((a, c) => a + c.weight, 0),
     goldFit,
     cards,
   };

@@ -1,14 +1,11 @@
-import type { Calibration, Dataset } from '../../shared/types';
-import { ko, shortMapName } from '../lib/names';
+import type { Dataset } from '../../shared/types';
 
 interface Props {
   dataset: Dataset;
 }
 
 export function Methodology({ dataset }: Props) {
-  const cal: Calibration | null = dataset.calibration;
-  const cardKo = new Map(dataset.static.cards.map((c) => [c.name, c.nameKo]));
-  const areaKo = new Map(dataset.static.areas.map((a) => [a.name, a.nameKo]));
+  const weights = dataset.static.weights;
   const mapCount = dataset.static.areas.filter((a) => a.isMap).length;
   const pairCount = dataset.static.areas
     .filter((a) => a.isMap)
@@ -44,16 +41,16 @@ export function Methodology({ dataset }: Props) {
             <a href="https://divicards-site.pages.dev/" target="_blank" rel="noreferrer noopener">Divicards</a> /
             Divcord 커뮤니티 가중치 스프레드시트
           </td></tr>
-          <tr><th>집계 표본</th><td>{dataset.static.weights ? `스택된 덱 ${dataset.static.weights.totalSamples.toLocaleString('ko-KR')}개 개봉 (패치 ${dataset.static.weights.patches[0]}~${dataset.static.weights.patches.at(-1)})` : '-'}</td></tr>
+          <tr><th>집계 표본</th><td>{weights ? `스택된 덱 ${weights.totalSamples.toLocaleString('ko-KR')}개 개봉 (패치 ${weights.patches[0]}~${weights.patches.at(-1)})` : '-'}</td></tr>
           <tr><th>척도</th><td>Rain of Chaos(카오스의 비) = 121,400 기준</td></tr>
-          <tr><th>수록 카드</th><td>{dataset.static.weights ? `${dataset.static.weights.cards.length}종 (실측 ${dataset.static.weights.cards.filter((c) => c.source === 'measured').length}종)` : '-'}</td></tr>
+          <tr><th>수록 카드</th><td>{weights ? `${weights.cards.length}종 (실측 ${weights.cards.filter((c) => c.source === 'measured').length}종)` : '-'}</td></tr>
         </tbody>
       </table>
       <p>
         표본이 0인 카드는 그 사실 자체가 상한을 준다. 관측 0회의 95% 상한이 3/N 이므로 가중치는
-        {dataset.static.weights ? ` ${dataset.static.weights.detectionBound.toFixed(2)} ` : ' '}
+        {weights ? ` ${weights.detectionBound.toFixed(2)} ` : ' '}
         미만이고, 이 상한과 골드 수수료 회귀 추정치 중 작은 값을 쓴다. 표에 없는 신규 카드는 골드 회귀로
-        채운다{dataset.static.weights ? ` (가중치 ∝ 골드^${dataset.static.weights.goldFit.exponent.toFixed(2)}, R²=${dataset.static.weights.goldFit.r2.toFixed(2)}, n=${dataset.static.weights.goldFit.samples})` : ''}.
+        채운다{weights ? ` (가중치 ∝ 골드^${weights.goldFit.exponent.toFixed(2)}, R²=${weights.goldFit.r2.toFixed(2)}, n=${weights.goldFit.samples})` : ''}.
         카드 표의 가중치 옆에 <b>추정</b> 표시가 붙은 것이 이 경우다.
       </p>
 
@@ -99,33 +96,36 @@ export function Methodology({ dataset }: Props) {
       </p>
 
       <h2>계산식</h2>
+      <p>
+        실측 가중치는 <b>카드가 드롭됐을 때 그 카드일 확률</b>이다. 지도 1판에 카드가 몇 번 드롭되는지는
+        알 수 없지만, 같은 지도에서 예지만 바꿔 끼우는 비교이므로 그 값은 모든 지도에 공통이다. 그래서
+        기준값 100으로 고정하고 절대 수익 단위를 없앤 <b>비교 지수</b>만 쓴다.
+      </p>
       <pre>{`대상(m) = { 지도 m 전용 점술 카드 c : c의 드롭 레벨 ≤ 지도 m 지역 레벨 }
 
-S_m = Σ 골드_c^(-γ)                  지도 m의 상대 카드 드롭량
-E_m = Σ 골드_c^(-γ) × 시세_c          지도 m의 상대 기대 수익  ← 지도 간 순위 기준
+확률_c   = 가중치_c ÷ 전체 카드 가중치 합
+드롭수_c = (보스 전용이면 보스 드롭 횟수, 아니면 기준 100) × 확률_c
+지표_m   = Σ 드롭수_c × 시세_c        ← 지도 간 순위 기준
 
-A          = 지도당 카드 수 가정 ÷ 전체 지도 평균 S    (모든 지도 공통 상수)
-카드 수/회  = A × S_m × (몬스터 밀도_m / 평균)
-1회당 수익  = A × E_m × (몬스터 밀도_m / 평균)
-소요 분_m   = 기준 시간 × (평균 클리어 / 클리어_m)
-시간당 수익 = 1회당 수익 × 60 / 소요 분_m`}</pre>
+회수_m   = 예지의 오브 시세 ÷ 지표_m   (작을수록 빨리 회수)`}</pre>
       <p>
-        <code>A</code>는 모든 지도에 동일하게 곱해지므로 <b>지도 간 순위에는 영향이 없다.</b> 카오스
-        절대값을 읽을 때만 의미가 있고, 그 값은 "평균 지도 1회당 전용 카드가 몇 장 나오는가"라는 가정에
-        달려 있다.
+        기준값 100은 모든 지도에 똑같이 곱해지므로 순위와 배율에는 영향이 없다. 지표의 절대 크기 자체에는
+        의미가 없고, 지도끼리 비교할 때만 의미가 있다.
+      </p>
+      <p>
+        보스 전용 카드만 드롭 횟수가 다르다. 보스는 판당 한 번만 잡으므로 일반 몬스터에서 나오는 카드보다
+        기회가 훨씬 적다. 그 횟수를 얼마로 볼지는 알 수 없어 파라미터로 열어 두었다.
       </p>
 
       <h2>한계</h2>
       <ul>
         <li>
-          <b>절대 수익은 가정값이다.</b> 지도 1회당 카드가 몇 장 드롭되는지는 공개 데이터가 없다. 지도 간
-          순위와 배율은 유효하지만 "1회당 몇 카오스"라는 숫자 자체는 가정에 의존한다. 지도 상세의
-          실측 보정으로 직접 맞출 수 있다.
+          <b>지표는 절대 수익이 아니다.</b> 지도 1판에 카드가 몇 번 드롭되는지는 공개 데이터가 없어
+          기준값으로 고정했다. 지도 간 순위와 배율은 유효하지만 지표의 절대 크기에는 의미가 없다.
         </li>
         <li>
-          <b>γ는 과소추정 쪽으로 편향된다.</b> 거래량이 0인 카드는 회귀에서 빠지는데 그런 카드는 대개 흔한
-          저가 카드다. 즉 표본이 희귀한 카드 쪽으로 잘려 있어 실제 γ는 추정치보다 클 가능성이 높다.
-          체감보다 희귀한 카드가 후하게 잡힌다면 γ를 올려서 보면 된다.
+          <b>보스 전용 카드의 드롭 횟수는 추정이다.</b> 보스 처치 한 번에 카드가 나올 기회가 몇 번인지는
+          알려진 값이 없다. 직접 관측한 빈도가 있으면 실측 고정으로 덮어쓰는 편이 낫다.
         </li>
         <li>
           <b>아틀라스 특성·갑충석·지도 접두어를 반영하지 않는다.</b> 점술 카드에는 전용 스탯이 따로
@@ -188,31 +188,6 @@ A          = 지도당 카드 수 가정 ÷ 전체 지도 평균 S    (모든 �
         </tbody>
       </table>
 
-      {cal && cal.points.length > 0 && (
-        <>
-          <h2>γ 회귀에 쓰인 표본</h2>
-          <div className="tableWrap">
-            <table>
-              <thead>
-                <tr><th>점술 카드</th><th>지도</th><th className="num">골드</th><th className="num">시세(카오스)</th><th className="num">24시간 거래량</th></tr>
-              </thead>
-              <tbody>
-                {[...cal.points]
-                  .sort((a, b) => b.gold - a.gold)
-                  .map((p) => (
-                    <tr key={`${p.map}-${p.card}`}>
-                      <td>{ko(cardKo.get(p.card), p.card)}</td>
-                      <td className="dim">{shortMapName(areaKo.get(p.map), p.map)}</td>
-                      <td className="num">{p.gold}</td>
-                      <td className="num">{p.chaos.toFixed(1)}</td>
-                      <td className="num">{p.volume.toLocaleString('ko-KR')}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
     </div>
   );
 }

@@ -126,6 +126,8 @@ export interface CardWeight {
   source: 'measured' | 'bucket' | 'gold';
   /** 커뮤니티가 매긴 희소도 등급 */
   bucket: number | null;
+  /** 화폐 거래소 골드 수수료 (대체 가중치 산출용) */
+  gold: number | null;
   /** 보스에서만 나오는 카드. 일반 지역 드롭과 경로가 다르다 */
   bossOnly: boolean;
 }
@@ -138,6 +140,8 @@ export interface WeightData {
   totalSamples: number;
   /** 표본 0 인 카드의 가중치 상한 (95%) */
   detectionBound: number;
+  /** 전체 카드 가중치 합. 카드 하나가 뽑힐 확률의 분모가 된다 */
+  totalWeight: number;
   /** 가중치 ∝ 골드^(-x) 회귀 결과 (신규 카드 추정용) */
   goldFit: { exponent: number; intercept: number; r2: number; samples: number };
   cards: CardWeight[];
@@ -178,8 +182,6 @@ export interface Dataset {
   league: LeagueInfo | null;
   /** 시세 원본 조회 실패로 커밋된 스냅샷을 사용 중인지 */
   stale: boolean;
-  /** 데이터로부터 실측한 가격-희소성 회귀 결과 */
-  calibration: Calibration | null;
 }
 
 /** 같은 지도 전용 카드들의 (골드 수수료, 거래량) 회귀 결과 */

@@ -1,8 +1,7 @@
 import { GAMMA_BOUNDS, VOIDSTONE_TIER, type EvParams } from '../../shared/ev';
-import type { Calibration } from '../../shared/types';
 
 export interface ViewOptions {
-  sort: 'evPerRun' | 'evPerHour' | 'valuePerCard' | 'paybackRuns' | 'tier';
+  sort: 'index' | 'paybackIndex' | 'tier';
   minTier: number;
   maxTier: number;
   query: string;
@@ -14,11 +13,12 @@ interface Props {
   onParams: (next: EvParams) => void;
   view: ViewOptions;
   onView: (next: ViewOptions) => void;
-  calibration: Calibration | null;
+  pinCount: number;
+  onClearPins: () => void;
   onReset: () => void;
 }
 
-export function Controls({ params, onParams, view, onView, calibration, onReset }: Props) {
+export function Controls({ params, onParams, view, onView, pinCount, onClearPins, onReset }: Props) {
   const set = <K extends keyof EvParams>(key: K, value: EvParams[K]) =>
     onParams({ ...params, [key]: value });
   const setView = <K extends keyof ViewOptions>(key: K, value: ViewOptions[K]) =>
@@ -31,10 +31,8 @@ export function Controls({ params, onParams, view, onView, calibration, onReset 
         <div className="field">
           <label>정렬</label>
           <select value={view.sort} onChange={(e) => setView('sort', e.target.value as ViewOptions['sort'])}>
-            <option value="evPerRun">지도 1회당 기대 수익</option>
-            <option value="evPerHour">시간당 기대 수익</option>
-            <option value="valuePerCard">점술 카드 1장당 가치</option>
-            <option value="paybackRuns">예지 비용 회수 판수 (적은 순)</option>
+            <option value="index">기대 지표 (높은 순)</option>
+            <option value="paybackIndex">예지 비용 대비 회수 (빠른 순)</option>
             <option value="tier">지도 등급</option>
           </select>
         </div>
@@ -80,35 +78,15 @@ export function Controls({ params, onParams, view, onView, calibration, onReset 
             <option value="measured">커뮤니티 실측 가중치 (권장)</option>
             <option value="gold">골드 수수료 추정</option>
             <option value="uniform">균등 (모든 카드 동일 확률)</option>
-            <option value="volume">24시간 거래량 (편향 주의)</option>
           </select>
           <div className="hint">
             {params.weightSource === 'measured' &&
-              'Divcord 커뮤니티가 스택된 덱 116만 개를 열어 실측한 카드별 가중치. 스택된 덱은 전역 가중치 표에서 무작위로 뽑으므로 지도 선호도나 거래 유동성 편향이 없다.'}
+              'Divcord 커뮤니티가 스택된 덱 116만 개를 열어 실측한 카드별 가중치. 카드가 드롭됐을 때 그 카드일 확률을 그대로 쓴다.'}
             {params.weightSource === 'gold' &&
               '골드 수수료로 추정한다. 실측 가중치와의 회귀는 가중치 ∝ 골드^-2.35 (R²=0.87) 이지만 카드별 편차가 크다.'}
-            {params.weightSource === 'uniform' && '그 지도의 전용 카드가 모두 같은 확률로 나온다고 가정한다.'}
-            {params.weightSource === 'volume' &&
-              '값싼 카드는 거래 자체가 안 되므로 드롭량이 크게 과소 반영된다. 비교용으로만 쓸 것.'}
+            {params.weightSource === 'uniform' && '모든 카드가 같은 확률로 나온다고 가정한다.'}
           </div>
         </div>
-
-        {params.weightSource === 'gold' && (
-          <div className="field">
-            <label>
-              시세 지수 β <span className="value">{params.priceExponent.toFixed(2)}</span>
-            </label>
-            <input
-              type="range" min={0} max={1.5} step={0.05} value={params.priceExponent}
-              onChange={(e) => set('priceExponent', Number(e.target.value))}
-            />
-            <div className="hint">
-              드롭률에 시세<sup>-β</sup> 를 함께 곱한다. 골드 수수료는 카드 설계 시점의 정적 값이라
-              고가 카드 구간에서 해상도가 없다(천벌 1350 vs 약제사 1100, 시세는 17배 차이). β를 올리면
-              비싼 카드가 더 희귀해지지만, 예지의 오브 시세와의 상관은 β=0.5 부근부터 급격히 떨어진다.
-            </div>
-          </div>
-        )}
 
         {params.weightSource === 'gold' && (
           <div className="field">
@@ -119,21 +97,38 @@ export function Controls({ params, onParams, view, onView, calibration, onReset 
               type="range" min={GAMMA_BOUNDS.min} max={GAMMA_BOUNDS.max} step={0.05} value={params.gamma}
               onChange={(e) => set('gamma', Number(e.target.value))}
             />
-            <div className="hint">
-              드롭률 ∝ 골드<sup>-γ</sup>. 기본값 1.00 은 드롭률이 골드 수수료에 정확히 반비례한다는 뜻이고, 높일수록 비싼 카드가 더 희귀해진다.
-              {calibration && (
-                <>
-                  {' '}현재 시세로 실측하면 {calibration.gamma.toFixed(2)} (R²=
-                  {calibration.r2.toFixed(2)}, 표본 {calibration.samples}).{' '}
-                  <button className="linkBtn" onClick={() => set('gamma', Math.round(calibration.gamma * 20) / 20)}>
-                    실측값 적용
-                  </button>
-                  {' '}실측치는 거래량이 0인 흔한 카드가 표본에서 빠져 날마다 흔들리고 과소추정되는 편이다.
-                </>
-              )}
-            </div>
+            <div className="hint">드롭률 ∝ 골드<sup>-γ</sup>. 실측 회귀값은 2.35 다.</div>
           </div>
         )}
+
+        <div className="field">
+          <label>
+            지도 1판당 카드 드롭 횟수 <span className="value">{params.baseDrops}</span>
+          </label>
+          <input
+            type="range" min={100} max={3000} step={100} value={params.baseDrops}
+            onChange={(e) => set('baseDrops', Number(e.target.value))}
+          />
+          <div className="hint">
+            모든 지도에 공통으로 곱해지므로 순위와 배율은 바뀌지 않는다. 드롭 빈도 표기가 체감과 맞도록
+            조절하면 된다.
+          </div>
+        </div>
+
+        <div className="field">
+          <label>
+            보스 카드 드롭 횟수 <span className="value">{params.bossDrops}</span>
+            <span className="dim"> (기준의 {Math.round((params.bossDrops / params.baseDrops) * 100)}%)</span>
+          </label>
+          <input
+            type="range" min={0} max={params.baseDrops} step={10} value={Math.min(params.bossDrops, params.baseDrops)}
+            onChange={(e) => set('bossDrops', Number(e.target.value))}
+          />
+          <div className="hint">
+            보스에서만 나오는 카드는 판당 한 번뿐인 보스 처치에서만 기회가 생긴다. 기본값은 관측 두 건
+            (창살 약제사 100~200판에 1장, 묘지 천벌 2700판에 1장)을 동시에 맞춘 값이다.
+          </div>
+        </div>
 
         <div className="field">
           <label>실행 등급 가정</label>
@@ -155,47 +150,18 @@ export function Controls({ params, onParams, view, onView, calibration, onReset 
             16등급(지역 레벨 83)이 되고, 이 경우 잠기는 카드는 없다.
           </div>
         </div>
-      </div>
 
-      <div className="panel">
-        <h2>수익 환산</h2>
-        <div className="field">
-          <label>
-            평균 지도 1회당 전용 카드 <span className="value">{params.cardsPerRun.toFixed(2)}장</span>
-          </label>
-          <input
-            type="range" min={0.1} max={4} step={0.05} value={params.cardsPerRun}
-            onChange={(e) => set('cardsPerRun', Number(e.target.value))}
-          />
-          <div className="hint">모든 지도에 같은 비율로 곱해지는 값이라 순위는 바뀌지 않는다.</div>
-        </div>
-        <div className="field">
-          <label>
-            기준 지도 1회 소요 <span className="value">{params.minutesPerRun}분</span>
-          </label>
-          <input
-            type="range" min={1} max={15} step={0.5} value={params.minutesPerRun}
-            onChange={(e) => set('minutesPerRun', Number(e.target.value))}
-          />
-        </div>
-        <label className="check">
-          <input
-            type="checkbox" checked={params.scaleByDensity}
-            onChange={(e) => set('scaleByDensity', e.target.checked)}
-          />
-          몬스터 밀도로 드롭량 보정
-        </label>
-        <label className="check">
-          <input
-            type="checkbox" checked={params.scaleTimeByClearing}
-            onChange={(e) => set('scaleTimeByClearing', e.target.checked)}
-          />
-          클리어 속도로 소요 시간 보정
-        </label>
+        {pinCount > 0 && (
+          <div className="field">
+            <label>실측으로 고정한 카드 {pinCount}종</label>
+            <button className="linkBtn" onClick={onClearPins}>전부 해제</button>
+          </div>
+        )}
+
         <button
           onClick={onReset}
           style={{
-            marginTop: 8, width: '100%', background: 'var(--panel-2)', color: 'var(--muted)',
+            marginTop: 4, width: '100%', background: 'var(--panel-2)', color: 'var(--muted)',
             border: '1px solid var(--line)', borderRadius: 4, padding: '6px', cursor: 'pointer',
           }}
         >

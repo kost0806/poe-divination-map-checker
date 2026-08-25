@@ -1,5 +1,5 @@
 import type { MapEv } from '../../shared/ev';
-import { chaos, formatMinutes, paybackRuns } from '../lib/format';
+import { chaos, indexValue, round } from '../lib/format';
 import { ko, shortMapName } from '../lib/names';
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
 }
 
 export function MapTable({ rows, divineChaos, selected, favourites, onSelect, onToggleFavourite }: Props) {
-  const max = rows.reduce((a, r) => Math.max(a, r.evPerRun), 0);
+  const max = rows.reduce((a, r) => Math.max(a, r.index), 0);
 
   return (
     <div className="tableWrap">
@@ -23,10 +23,9 @@ export function MapTable({ rows, divineChaos, selected, favourites, onSelect, on
             <th className="num" style={{ width: 34 }}>#</th>
             <th>지도</th>
             <th style={{ width: 52 }}>등급</th>
-            <th className="num">1회당</th>
-            <th className="num">시간당</th>
+            <th className="num" title="Σ (지도 1판당 기대 개수 × 시세). 지도끼리 비교하기 위한 지수">기대 지표</th>
             <th className="num" title="이 지도를 예지하는 예지의 오브 시세">예지 비용</th>
-            <th className="num" title="예지 비용 ÷ 지도 1회당 기대 수익">회수 판수</th>
+            <th className="num" title="예지 비용 ÷ 기대 지표. 작을수록 빨리 회수된다">회수</th>
             <th>주력 점술 카드</th>
           </tr>
         </thead>
@@ -58,26 +57,18 @@ export function MapTable({ rows, divineChaos, selected, favourites, onSelect, on
                   </span>
                 )}
                 <div className="bar">
-                  <span style={{ width: `${max > 0 ? (row.evPerRun / max) * 100 : 0}%` }} />
+                  <span style={{ width: `${max > 0 ? (row.index / max) * 100 : 0}%` }} />
                 </div>
               </td>
               <td>
                 <span className="tier">{row.map.tier}</span>
               </td>
-              <td className="num chaos">{chaos(row.evPerRun, divineChaos)}</td>
-              <td className="num">{chaos(row.evPerHour, divineChaos)}</td>
+              <td className="num chaos">{indexValue(row.index)}</td>
               <td className="num dim">
                 {row.scryingChaos === null ? '-' : chaos(row.scryingChaos, divineChaos)}
               </td>
               <td className="num">
-                {row.paybackRuns === null ? (
-                  <span className="dim">-</span>
-                ) : (
-                  <>
-                    {paybackRuns(row.paybackRuns)}
-                    <div className="dim small">{formatMinutes(row.paybackMinutes)}</div>
-                  </>
-                )}
+                {row.paybackIndex === null ? <span className="dim">-</span> : round(row.paybackIndex)}
               </td>
               <td className="small">
                 {row.cards[0] ? (
