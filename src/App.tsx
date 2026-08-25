@@ -118,7 +118,7 @@ export function App() {
         <h1>지도별 점술 카드 기대 수익</h1>
         <div className="meta">
           <span>리그 <b>{dataset.league?.id ?? '알 수 없음'}</b></span>
-          <span>1 신성한 오브 = <b>{round(div)}</b> 카오스 오브</span>
+          <span>1 디바인 = <b>{round(div)}</b> 카오스</span>
           <span>시세 <b>{timeAgo(dataset.prices.fetchedAt)}</b></span>
           <span>지도 <b>{all.length}</b>개</span>
         </div>

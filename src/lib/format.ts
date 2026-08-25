@@ -1,8 +1,8 @@
-/** 카오스 오브 기준 값을 크기에 따라 카오스/신성한 오브로 표기 */
+/** 가격 단위 표기는 커뮤니티 통용 표현인 디바인/카오스를 쓴다 (아이템 이름은 신성한 오브/카오스 오브) */
 export function chaos(value: number, divineChaos: number): string {
   if (!Number.isFinite(value)) return '-';
   if (divineChaos > 0 && value >= divineChaos * 0.9) {
-    return `${round(value / divineChaos)} 신성`;
+    return `${round(value / divineChaos)} 디바인`;
   }
   return `${round(value)} 카오스`;
 }

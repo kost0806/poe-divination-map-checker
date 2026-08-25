@@ -19,5 +19,5 @@ const out = resolve(root, 'data/prices.json');
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, JSON.stringify(prices));
 console.log(
-  `시세 ${prices.prices.length}종 저장 (리그: ${prices.league ?? '알 수 없음'}, 1 신성한 오브 = ${prices.divineChaos} 카오스 오브) → ${out}`,
+  `시세 ${prices.prices.length}종 저장 (리그: ${prices.league ?? '알 수 없음'}, 1 디바인 = ${prices.divineChaos} 카오스) → ${out}`,
 );
