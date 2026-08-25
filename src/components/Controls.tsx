@@ -1,4 +1,4 @@
-import { GAMMA_BOUNDS, type EvParams } from '../../shared/ev';
+import { GAMMA_BOUNDS, VOIDSTONE_TIER, type EvParams } from '../../shared/ev';
 import type { Calibration } from '../../shared/types';
 
 export interface ViewOptions {
@@ -41,12 +41,12 @@ export function Controls({ params, onParams, view, onView, calibration, onReset 
           <label>지도 등급 범위</label>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <input
-              type="number" min={1} max={17} value={view.minTier}
+              type="number" min={1} max={VOIDSTONE_TIER} value={view.minTier}
               onChange={(e) => setView('minTier', Number(e.target.value))}
             />
             <span className="dim">~</span>
             <input
-              type="number" min={1} max={17} value={view.maxTier}
+              type="number" min={1} max={VOIDSTONE_TIER} value={view.maxTier}
               onChange={(e) => setView('maxTier', Number(e.target.value))}
             />
           </div>
@@ -125,7 +125,7 @@ export function Controls({ params, onParams, view, onView, calibration, onReset 
           >
             <option value="voidstone">공허석 4개 (전부 16등급)</option>
             <option value="base">공허석 없음 (지도 고유 등급)</option>
-            {Array.from({ length: 17 }, (_, i) => i + 1).map((t) => (
+            {Array.from({ length: VOIDSTONE_TIER }, (_, i) => i + 1).map((t) => (
               <option key={t} value={t}>{t}등급으로 돌린다고 가정</option>
             ))}
           </select>

@@ -21,7 +21,7 @@ const FAV_KEY = 'poe-div-favourites';
 const DEFAULT_VIEW: ViewOptions = {
   sort: 'evPerRun',
   minTier: 1,
-  maxTier: 17,
+  maxTier: 16,
   query: '',
   favouritesOnly: false,
 };

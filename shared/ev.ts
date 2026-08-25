@@ -52,6 +52,15 @@ export const GAMMA_BOUNDS = { min: 0.3, max: 5 };
 /** 공허석 4개를 모두 장착하면 아틀라스 전체가 16등급이 된다 */
 export const VOIDSTONE_TIER = 16;
 
+/**
+ * 선호 지도로 예지할 수 있는 지도인지 판정한다.
+ * 17등급 지도와 아틀라스에 없는 지도(자나 기억 지도)는 예지 대상이 아니라 비교에서 제외한다.
+ * 고유 지도는 애초에 지역 목록에서 지도로 분류되지 않아 들어오지 않는다.
+ */
+export function isFavourable(map: MapInfo): boolean {
+  return map.tier <= VOIDSTONE_TIER && !map.tags.includes('map_not_on_atlas');
+}
+
 export const DEFAULT_PARAMS: EvParams = {
   tierMode: 'voidstone',
   weightSource: 'gold',
@@ -338,7 +347,10 @@ export function computeAll(input: EvInput, params: EvParams): MapEv[] {
   const tierLevel = tierLevels(input.maps);
 
   // 스케일 기준이 되는 평균 상대 드롭량은 파라미터에 따라 달라지므로 매번 다시 구한다
-  const mapAreas = input.areas.filter((a) => a.isMap && index.map.has(a.slug));
+  const mapAreas = input.areas.filter((a) => {
+    const map = index.map.get(a.slug);
+    return a.isMap && map !== undefined && isFavourable(map);
+  });
   const rawDrops = mapAreas.map((area) => {
     const map = index.map.get(area.slug)!;
     const { eligible } = rowsFor(area, index, effectiveAreaLevel(map, params.tierMode, tierLevel));
