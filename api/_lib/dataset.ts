@@ -6,8 +6,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calibrateGamma } from '../../shared/ev.js';
-import { fetchCurrentLeague, fetchPrices } from '../../shared/sources.js';
-import type { Dataset, LeagueInfo, PriceData, StaticData } from '../../shared/types.js';
+import { fetchCurrentLeague, fetchPrices, fetchScryingOrbs } from '../../shared/sources.js';
+import type {
+  Dataset,
+  LeagueInfo,
+  PriceData,
+  ScryingData,
+  StaticData,
+} from '../../shared/types.js';
 
 /**
  * 데이터 파일은 import 하지 않고 직접 읽는다.
@@ -28,6 +34,7 @@ function loadJson<T>(relativePath: string): T {
 
 const staticData = loadJson<StaticData>('data/static.json');
 const snapshot = loadJson<PriceData>('data/prices.json');
+const scryingSnapshot = loadJson<ScryingData>('data/scrying.json');
 
 const PRICE_TTL_MS = 30 * 60 * 1000;
 const LEAGUE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -39,6 +46,7 @@ interface Cached<T> {
 
 let priceCache: Cached<PriceData> | null = null;
 let leagueCache: Cached<LeagueInfo | null> | null = null;
+let scryingCache: Cached<ScryingData> | null = null;
 let priceStale = false;
 
 const fresh = <T>(c: Cached<T> | null, ttl: number) => (c && Date.now() - c.at < ttl ? c : null);
@@ -70,11 +78,30 @@ async function getLeague(): Promise<LeagueInfo | null> {
   }
 }
 
+/**
+ * 예지의 오브 시세는 poe.ninja 에서 온다. 원본이 15분 주기로 갱신되므로
+ * 그보다 자주 조회하지 않고, 실패하면 커밋된 스냅숏으로 넘어간다.
+ */
+async function getScrying(league: LeagueInfo | null): Promise<ScryingData> {
+  const cached = fresh(scryingCache, PRICE_TTL_MS);
+  if (cached) return cached.value;
+  if (!league) return scryingCache?.value ?? scryingSnapshot;
+  try {
+    const value = await fetchScryingOrbs(league.id, staticData.maps);
+    scryingCache = { value, at: Date.now() };
+    return value;
+  } catch {
+    return scryingCache?.value ?? scryingSnapshot;
+  }
+}
+
 export async function buildDataset(): Promise<Dataset> {
   const [prices, league] = await Promise.all([getPrices(), getLeague()]);
+  const scrying = await getScrying(league);
   return {
     static: staticData,
     prices,
+    scrying,
     league,
     stale: priceStale,
     calibration: calibrateGamma({

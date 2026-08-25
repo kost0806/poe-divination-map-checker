@@ -108,6 +108,26 @@ export interface PriceData {
   prices: PriceEntry[];
 }
 
+/** 지도 하나를 예지하는 데 드는 예지의 오브 시세 (poe.ninja) */
+export interface ScryingPrice {
+  /** poe.ninja 표기 이름. 지도명에서 " Map" 을 뗀 형태 */
+  name: string;
+  /** 대응하는 지도 슬러그 */
+  mapSlug: string | null;
+  chaos: number;
+  divine: number;
+  /** 시세 산출에 쓰인 매물 수 */
+  listings: number;
+  detailsId: string;
+}
+
+/** 런타임에 갱신되는 예지의 오브 시세 스냅숏 */
+export interface ScryingData {
+  fetchedAt: string;
+  league: string | null;
+  prices: ScryingPrice[];
+}
+
 export interface LeagueInfo {
   id: string;
   startAt: string | null;
@@ -118,6 +138,8 @@ export interface LeagueInfo {
 export interface Dataset {
   static: StaticData;
   prices: PriceData;
+  /** 예지의 오브 시세. 조회 실패 시 null */
+  scrying: ScryingData | null;
   league: LeagueInfo | null;
   /** 시세 원본 조회 실패로 커밋된 스냅샷을 사용 중인지 */
   stale: boolean;

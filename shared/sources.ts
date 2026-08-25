@@ -11,7 +11,15 @@ import {
   parseMapPage,
   toPriceEntries,
 } from './poedb.js';
-import type { CardInfo, LeagueInfo, MapInfo, PriceData, StaticData } from './types.js';
+import type {
+  CardInfo,
+  LeagueInfo,
+  MapInfo,
+  PriceData,
+  ScryingData,
+  ScryingPrice,
+  StaticData,
+} from './types.js';
 
 /** 화폐 거래소 시세 (카드 + 신성한 오브 환율). 런타임에 주기적으로 갱신되는 부분 */
 export async function fetchPrices(): Promise<PriceData> {
@@ -23,6 +31,44 @@ export async function fetchPrices(): Promise<PriceData> {
   const prices = toPriceEntries(parseEconomyTable(cardsHtml), divineChaos);
   if (!prices.length) throw new Error('시세 파싱 결과가 비어 있습니다');
   return { fetchedAt: new Date().toISOString(), league: null, divineChaos, prices };
+}
+
+/**
+ * 지도별 예지의 오브 시세 (poe.ninja).
+ *
+ * poe.ninja API 문서가 지원 대상으로 명시한 economy 엔드포인트만 사용한다.
+ * 문서의 이용 지침에 따라 서버 쪽에서만 호출하고, 응답 캐시를 존중하며(약 5분),
+ * 원본 데이터가 15분 주기로 갱신되므로 그보다 자주 조회하지 않는다.
+ * 예지의 오브는 화폐 거래소에서 거래되지 않아 PoEDB 시세에는 존재하지 않는다.
+ */
+export async function fetchScryingOrbs(league: string, maps: MapInfo[]): Promise<ScryingData> {
+  const url = `https://poe.ninja/poe1/api/economy/stash/current/item/overview?league=${encodeURIComponent(league)}&type=ScryingOrb`;
+  const body = await fetchJson<{ lines?: ScryingLine[] }>(url);
+
+  // poe.ninja 는 지도명에서 " Map" 을 뗀 이름을 쓴다
+  const slugByName = new Map(
+    maps.map((m) => [m.name.replace(/\s+Map$/, ''), m.slug] as const),
+  );
+  const prices: ScryingPrice[] = (body.lines ?? [])
+    .filter((line) => line.chaosValue > 0)
+    .map((line) => ({
+      name: line.name,
+      mapSlug: slugByName.get(line.name) ?? null,
+      chaos: line.chaosValue,
+      divine: line.divineValue ?? 0,
+      listings: line.listingCount ?? line.count ?? 0,
+      detailsId: line.detailsId ?? '',
+    }));
+  return { fetchedAt: new Date().toISOString(), league, prices };
+}
+
+interface ScryingLine {
+  name: string;
+  chaosValue: number;
+  divineValue?: number;
+  count?: number;
+  listingCount?: number;
+  detailsId?: string;
 }
 
 /** 공식 API에서 현재 진행 중인 임시 리그(챌린지 리그)를 찾는다 */

@@ -37,3 +37,18 @@ export function timeAgo(iso: string): string {
   if (hour < 24) return `${hour}시간 전`;
   return `${Math.round(hour / 24)}일 전`;
 }
+
+/** 분 단위 시간을 사람이 읽는 형태로 (예: 3.2시간, 45분) */
+export function formatMinutes(minutes: number | null): string {
+  if (minutes === null || !Number.isFinite(minutes)) return '-';
+  if (minutes < 60) return `${Math.round(minutes)}분`;
+  const hours = minutes / 60;
+  return hours < 24 ? `${round(hours)}시간` : `${round(hours / 24)}일`;
+}
+
+/** 회수 판수 표기. 한 판이면 이미 본전이라 소수점을 보여줄 이유가 없다 */
+export function paybackRuns(runs: number | null): string {
+  if (runs === null || !Number.isFinite(runs)) return '-';
+  if (runs < 1) return '1판 미만';
+  return `${round(runs)}판`;
+}

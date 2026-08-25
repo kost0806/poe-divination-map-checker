@@ -2,7 +2,7 @@ import { GAMMA_BOUNDS, VOIDSTONE_TIER, type EvParams } from '../../shared/ev';
 import type { Calibration } from '../../shared/types';
 
 export interface ViewOptions {
-  sort: 'evPerRun' | 'evPerHour' | 'valuePerCard' | 'tier';
+  sort: 'evPerRun' | 'evPerHour' | 'valuePerCard' | 'paybackRuns' | 'tier';
   minTier: number;
   maxTier: number;
   query: string;
@@ -34,6 +34,7 @@ export function Controls({ params, onParams, view, onView, calibration, onReset 
             <option value="evPerRun">지도 1회당 기대 수익</option>
             <option value="evPerHour">시간당 기대 수익</option>
             <option value="valuePerCard">점술 카드 1장당 가치</option>
+            <option value="paybackRuns">예지 비용 회수 판수 (적은 순)</option>
             <option value="tier">지도 등급</option>
           </select>
         </div>

@@ -1,7 +1,11 @@
 /** 공통 HTTP 클라이언트: PoEDB/공식 API 조회에 쓰는 최소 재시도 래퍼 */
 
+/**
+ * poe.ninja 이용 지침이 앱과 연락 경로를 식별할 수 있는 User-Agent 를 요구한다.
+ * 연락은 저장소 이슈로 받는다.
+ */
 const USER_AGENT =
-  'poe-divination-map-checker/0.1 (+https://github.com/kost0806/poe-divination-map-checker)';
+  'poe-divination-map-checker/0.1 (+https://github.com/kost0806/poe-divination-map-checker; contact: github issues)';
 
 export interface FetchOptions {
   timeoutMs?: number;

@@ -65,6 +65,21 @@ export function Methodology({ dataset }: Props) {
         <code> A · 골드<sub>c</sub><sup>-γ</sup></code> 로 둔다.
       </p>
 
+      <h2>예지 비용 회수</h2>
+      <p>
+        예지의 오브는 화폐 거래소에서 거래되지 않아 인게임 시세가 없다. 그래서 지도별 시세는
+        poe.ninja 가 문서에서 지원 대상으로 명시한 economy 엔드포인트(<code>ScryingOrb</code>)에서 받아온다.
+        지침대로 서버 쪽에서만 호출하고 응답 캐시를 존중하며, 원본이 15분 주기로 갱신되므로 그보다 자주
+        조회하지 않는다.
+      </p>
+      <pre>{`회수 판수 = 예지의 오브 시세 ÷ 지도 1회당 기대 수익
+회수 시간 = 회수 판수 × 지도 1회 소요 시간`}</pre>
+      <p>
+        점술 카드 수익만 놓고 본전을 맞추는 데 필요한 판수다. 지도에서 나오는 다른 수익(화폐, 장비,
+        아틀라스 진행)은 계산에 넣지 않았으므로 실제 회수는 이보다 빠르다. 참고로 예지의 오브 시세가
+        붙은 지도는 정확히 100개이고, 이 앱이 비교 대상에서 뺀 13개 지도에는 예지의 오브 자체가 없다.
+      </p>
+
       <h2>어느 등급으로 돈다고 보나</h2>
       <p>
         기본값은 <b>공허석 4개를 낀 상태</b>다. 이 경우 아틀라스의 모든 지도가 16등급(지역 레벨 83)이
@@ -149,6 +164,15 @@ A          = 지도당 카드 수 가정 ÷ 전체 지도 평균 S    (모든 �
             <td>지도 등급 · 지역 레벨 · 몬스터 밀도 · 클리어 속도</td>
             <td>PoEDB</td>
             <td>{dataset.static.maps.length}개 지도</td>
+          </tr>
+          <tr>
+            <td>지도별 예지의 오브 시세</td>
+            <td>
+              <a href="https://poe.ninja/docs/api" target="_blank" rel="noreferrer noopener">
+                poe.ninja 공개 economy API
+              </a>
+            </td>
+            <td>{dataset.scrying?.prices.length ?? 0}종</td>
           </tr>
           <tr>
             <td>현재 리그</td>

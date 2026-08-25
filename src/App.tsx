@@ -13,7 +13,7 @@ import { Controls, type ViewOptions } from './components/Controls';
 import { MapDetail } from './components/MapDetail';
 import { MapTable } from './components/MapTable';
 import { Methodology } from './components/Methodology';
-import { chaos, round, timeAgo } from './lib/format';
+import { chaos, paybackRuns, round, timeAgo } from './lib/format';
 import { ko, shortMapName } from './lib/names';
 
 const FAV_KEY = 'poe-div-favourites';
@@ -69,6 +69,7 @@ export function App() {
             maps: dataset.static.maps,
             cards: dataset.static.cards,
             prices: dataset.prices.prices,
+            scrying: dataset.scrying?.prices,
           }
         : null,
     [dataset],
@@ -93,9 +94,14 @@ export function App() {
       );
     });
     const key = view.sort;
-    return [...filtered].sort((a, b) =>
-      key === 'tier' ? b.map.tier - a.map.tier || b.evPerRun - a.evPerRun : b[key] - a[key],
-    );
+    return [...filtered].sort((a, b) => {
+      if (key === 'tier') return b.map.tier - a.map.tier || b.evPerRun - a.evPerRun;
+      // 회수 판수는 작을수록 좋고, 예지 비용을 모르는 지도는 뒤로 보낸다
+      if (key === 'paybackRuns') {
+        return (a.paybackRuns ?? Infinity) - (b.paybackRuns ?? Infinity);
+      }
+      return b[key] - a[key];
+    });
   }, [all, view, favourites]);
 
   const selectedRow = rows.find((r) => r.map.slug === selected) ?? null;
@@ -177,6 +183,7 @@ export function App() {
                         <th style={{ width: 52 }}>등급</th>
                         <th className="num">1회당</th>
                         <th className="num">시간당</th>
+                        <th className="num">회수</th>
                         <th>주력 점술 카드</th>
                         <th style={{ width: 28 }}></th>
                       </tr>
@@ -190,6 +197,9 @@ export function App() {
                             <td><span className="tier">{r.map.tier}</span></td>
                             <td className="num chaos">{chaos(r.evPerRun, div)}</td>
                             <td className="num">{chaos(r.evPerHour, div)}</td>
+                            <td className="num dim">
+                              {paybackRuns(r.paybackRuns)}
+                            </td>
                             <td className="small dim">{r.cards[0] ? ko(r.cards[0].cardKo, r.cards[0].card) : '-'}</td>
                             <td>
                               <button

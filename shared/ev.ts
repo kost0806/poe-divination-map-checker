@@ -19,7 +19,14 @@
  * 지역 제한 없이 아무 데서나 드롭되는 전역 풀 카드는 모든 지도에 공통이므로 제외하고,
  * 지도 전용 카드만 비교한다.
  */
-import type { AreaPool, Calibration, CardInfo, MapInfo, PriceEntry } from './types.js';
+import type {
+  AreaPool,
+  Calibration,
+  CardInfo,
+  MapInfo,
+  PriceEntry,
+  ScryingPrice,
+} from './types.js';
 
 export interface EvParams {
   /**
@@ -145,6 +152,12 @@ export interface MapEv {
   minutesPerRun: number;
   /** 전용 카드 1장당 평균 가치(카오스) */
   valuePerCard: number;
+  /** 이 지도를 예지하는 예지의 오브 시세(카오스) */
+  scryingChaos: number | null;
+  /** 예지 비용을 회수하는 데 필요한 실행 횟수 */
+  paybackRuns: number | null;
+  /** 회수까지 걸리는 시간(분) */
+  paybackMinutes: number | null;
   topCard: CardRow | null;
   cards: CardRow[];
 }
@@ -154,6 +167,8 @@ export interface EvInput {
   maps: MapInfo[];
   cards: CardInfo[];
   prices: PriceEntry[];
+  /** 지도별 예지의 오브 시세. 없으면 회수 판수를 계산하지 않는다 */
+  scrying?: ScryingPrice[];
 }
 
 /** 이름 표기 차이를 흡수하는 정규화 키 */
@@ -163,6 +178,7 @@ export function normalizeName(name: string): string {
 
 interface Index {
   price: Map<string, PriceEntry>;
+  scrying: Map<string, ScryingPrice>;
   card: Map<string, CardInfo>;
   map: Map<string, MapInfo>;
   areaCount: Map<string, number>;
@@ -209,6 +225,7 @@ export function buildIndex(input: EvInput): Index {
     price,
     card,
     map,
+    scrying: new Map((input.scrying ?? []).flatMap((s) => (s.mapSlug ? [[s.mapSlug, s] as const] : []))),
     areaCount,
     medianGold: median(input.cards.map((c) => c.goldFee ?? 0).filter((g) => g > 0)),
   };
@@ -336,6 +353,9 @@ export function computeMapEv(
   const cardsPerRun = relativeDrops * scale * density;
   const evPerRun = relativeValue * scale * density;
   const minutesPerRun = params.minutesPerRun * speed;
+  // 예지 비용을 지도 1회당 기대 수익으로 나누면 본전까지 필요한 판수가 된다
+  const scryingChaos = index.scrying.get(map.slug)?.chaos ?? null;
+  const paybackRuns = scryingChaos !== null && evPerRun > 0 ? scryingChaos / evPerRun : null;
 
   const cards: CardRow[] = base
     .map((c) => {
@@ -363,6 +383,9 @@ export function computeMapEv(
     evPerHour: minutesPerRun > 0 ? (evPerRun * 60) / minutesPerRun : 0,
     minutesPerRun,
     valuePerCard: relativeDrops > 0 ? relativeValue / relativeDrops : 0,
+    scryingChaos,
+    paybackRuns,
+    paybackMinutes: paybackRuns !== null ? paybackRuns * minutesPerRun : null,
     topCard: cards.reduce<CardRow | null>((best, r) => (!best || r.chaos > best.chaos ? r : best), null),
     cards,
   };

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { EvParams, MapEv } from '../../shared/ev';
-import { chaos, frequency, percent, round } from '../lib/format';
+import { chaos, formatMinutes, frequency, paybackRuns, percent, round } from '../lib/format';
 import { ko, poedbUrl } from '../lib/names';
 
 interface Props {
@@ -92,6 +92,21 @@ export function MapDetail({
         <div className="stat">
           <div className="k">전용 카드 1장당 가치</div>
           <div className="v">{chaos(row.valuePerCard, divineChaos)}</div>
+        </div>
+        <div className="stat">
+          <div className="k">예지 비용 / 회수</div>
+          <div className="v">
+            {row.scryingChaos === null ? (
+              <span className="dim">-</span>
+            ) : (
+              <>
+                {chaos(row.scryingChaos, divineChaos)}
+                <span className="small dim">
+                  {' '}· {paybackRuns(row.paybackRuns)} · {formatMinutes(row.paybackMinutes)}
+                </span>
+              </>
+            )}
+          </div>
         </div>
         <div className="stat">
           <div className="k">몬스터 밀도 / 클리어 / 보스 난이도</div>

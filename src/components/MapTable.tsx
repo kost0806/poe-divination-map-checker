@@ -1,5 +1,5 @@
 import type { MapEv } from '../../shared/ev';
-import { chaos, round } from '../lib/format';
+import { chaos, formatMinutes, paybackRuns } from '../lib/format';
 import { ko, shortMapName } from '../lib/names';
 
 interface Props {
@@ -25,7 +25,8 @@ export function MapTable({ rows, divineChaos, selected, favourites, onSelect, on
             <th style={{ width: 52 }}>등급</th>
             <th className="num">1회당</th>
             <th className="num">시간당</th>
-            <th className="num">카드/회</th>
+            <th className="num" title="이 지도를 예지하는 예지의 오브 시세">예지 비용</th>
+            <th className="num" title="예지 비용 ÷ 지도 1회당 기대 수익">회수 판수</th>
             <th>주력 점술 카드</th>
           </tr>
         </thead>
@@ -65,7 +66,19 @@ export function MapTable({ rows, divineChaos, selected, favourites, onSelect, on
               </td>
               <td className="num chaos">{chaos(row.evPerRun, divineChaos)}</td>
               <td className="num">{chaos(row.evPerHour, divineChaos)}</td>
-              <td className="num dim">{round(row.cardsPerRun)}</td>
+              <td className="num dim">
+                {row.scryingChaos === null ? '-' : chaos(row.scryingChaos, divineChaos)}
+              </td>
+              <td className="num">
+                {row.paybackRuns === null ? (
+                  <span className="dim">-</span>
+                ) : (
+                  <>
+                    {paybackRuns(row.paybackRuns)}
+                    <div className="dim small">{formatMinutes(row.paybackMinutes)}</div>
+                  </>
+                )}
+              </td>
               <td className="small">
                 {row.cards[0] ? (
                   <>
