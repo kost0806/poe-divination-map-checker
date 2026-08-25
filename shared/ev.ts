@@ -57,10 +57,7 @@ export interface EvParams {
    * false 면 확률 = w / 지도 4장. 실제 후보 구성은 공개 데이터로 확정할 수 없어 선택지로 둔다.
    */
   includeGlobalPool: boolean;
-  /**
-   * 보스에서만 나오는 카드의 드롭 기회 비율. 보스는 판당 한 번만 잡으므로 일반 카드보다 작다.
-   */
-  bossDropRatio: number;
+
   /**
    * 실측으로 고정한 카드별 드롭 횟수. 키는 `지도슬러그|카드영문명`, 값은 지도 1판당 기대 개수.
    * 공식이 맞지 않는 카드를 직접 관측값으로 덮어쓴다.
@@ -72,6 +69,12 @@ export interface EvParams {
 
 /** 희소성 지수 조절 범위 */
 export const GAMMA_BOUNDS = { min: 0.3, max: 5 };
+
+/**
+ * 보스 전용 카드의 지도 1판당 드롭 기회.
+ * 보스는 판당 한 번만 잡으므로 일반 몬스터 드롭 수와 무관하게 한 번으로 고정한다.
+ */
+export const BOSS_DROPS_PER_MAP = 1;
 
 /** 공허석 4개를 모두 장착하면 아틀라스 전체가 16등급이 된다 */
 export const VOIDSTONE_TIER = 16;
@@ -102,7 +105,6 @@ export const DEFAULT_PARAMS: EvParams = {
   gamma: 2.35,
   dropsPerMap: 1,
   includeGlobalPool: true,
-  bossDropRatio: 0.15,
   pinnedRates: {},
   priceFloorChaos: 0,
 };
@@ -330,8 +332,8 @@ export function computeMapEv(
     // 카드가 드롭됐을 때 이 카드일 확률
     const probability = poolWeight > 0 ? weight / poolWeight : 0;
     const bossOnly = measured?.bossOnly ?? false;
-    // 보스 카드는 판당 한 번인 보스 처치에서만 기회가 생긴다
-    const chances = params.dropsPerMap * (bossOnly ? params.bossDropRatio : 1);
+    // 보스 카드는 판당 한 번인 보스 처치에서만 기회가 생기므로 드롭 수 슬라이더와 무관하다
+    const chances = bossOnly ? BOSS_DROPS_PER_MAP : params.dropsPerMap;
     const pinnedRate = params.pinnedRates[pinKey(map.slug, e.entry.card)];
     const dropsPerMap = pinnedRate !== undefined ? pinnedRate : chances * probability;
     const chaos = e.price ? e.price.chaos : params.priceFloorChaos;

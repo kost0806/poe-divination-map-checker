@@ -112,7 +112,8 @@ export function Controls({ params, onParams, view, onView, pinCount, onClearPins
           <div className="hint">
             모든 지도에 공통으로 곱해지므로 순위와 배율은 바뀌지 않는다. 드롭 빈도 표기가 체감과 맞도록
             조절하면 된다. 스택된 덱 가중치를 지역 드롭률로 바꾸는 비율을 알 수 없어 이 값이 그 차이를
-            함께 흡수하므로, 실제 드롭 장수보다 큰 값이 필요할 수 있다.
+            함께 흡수하므로, 실제 드롭 장수보다 큰 값이 필요할 수 있다. 보스 전용 카드는 판당 보스를 한 번
+            잡으므로 이 값과 무관하게 1회로 고정된다.
           </div>
         </div>
 
@@ -128,20 +129,6 @@ export function Controls({ params, onParams, view, onView, pinCount, onClearPins
             카드가 드롭될 때 후보는 그 지역에서 나올 수 있는 카드들이다. 지역 제한이 없는 카드까지 후보에
             넣으면 지도 전용 카드의 확률이 그만큼 희석된다. 끄면 지도 전용 카드끼리만 경쟁한다고 본다.
             실제 후보 구성은 공개 데이터로 확정할 수 없다.
-          </div>
-        </div>
-
-        <div className="field">
-          <label>
-            보스 카드 드롭 기회 <span className="value">{Math.round(params.bossDropRatio * 100)}%</span>
-          </label>
-          <input
-            type="range" min={0} max={1} step={0.05} value={params.bossDropRatio}
-            onChange={(e) => set('bossDropRatio', Number(e.target.value))}
-          />
-          <div className="hint">
-            보스에서만 나오는 카드는 판당 한 번뿐인 보스 처치에서만 기회가 생긴다. 일반 카드 대비 몇 %의
-            기회를 줄지 정한다.
           </div>
         </div>
 
