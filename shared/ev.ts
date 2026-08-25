@@ -47,18 +47,20 @@ export interface EvParams {
   weightSource: 'measured' | 'gold' | 'uniform';
   /** 골드 기반 추정을 쓸 때의 희소성 지수 */
   gamma: number;
+  /** 지도 1판에 점술 카드가 몇 장 떨어진다고 볼지 */
+  dropsPerMap: number;
   /**
-   * 지도 1판당 점술 카드 드롭 횟수의 기준값.
-   * 모든 지도에 공통으로 곱해지므로 순위와 배율에는 영향이 없다. 실제 관측 두 건
-   * (창살 지도 약제사 100~200판에 1장, 묘지 지도 천벌 2700판에 1장)을 동시에 맞추면
-   * 기준 1000 · 보스 150 이 나온다.
+   * 확률의 분모에 전역 풀을 포함할지.
+   *
+   * 카드가 드롭될 때 후보는 그 지역에서 나올 수 있는 카드들이다. 지역 제한이 없는 카드(전역 풀)를
+   * 후보에 포함하면 지도 전용 카드의 확률이 그만큼 희석된다. true 면 확률 = w / (전역 풀 + 지도 4장),
+   * false 면 확률 = w / 지도 4장. 실제 후보 구성은 공개 데이터로 확정할 수 없어 선택지로 둔다.
    */
-  baseDrops: number;
+  includeGlobalPool: boolean;
   /**
-   * 보스에서만 나오는 카드의 드롭 횟수. 보스는 판당 한 번만 잡으므로 기준값보다 작다.
-   * 관측 두 건을 동시에 맞춘 값이 기준의 15%(1000 대 150)라 기본값으로 둔다.
+   * 보스에서만 나오는 카드의 드롭 기회 비율. 보스는 판당 한 번만 잡으므로 일반 카드보다 작다.
    */
-  bossDrops: number;
+  bossDropRatio: number;
   /**
    * 실측으로 고정한 카드별 드롭 횟수. 키는 `지도슬러그|카드영문명`, 값은 지도 1판당 기대 개수.
    * 공식이 맞지 않는 카드를 직접 관측값으로 덮어쓴다.
@@ -98,8 +100,9 @@ export const DEFAULT_PARAMS: EvParams = {
   tierMode: 'voidstone',
   weightSource: 'measured',
   gamma: 2.35,
-  baseDrops: 1000,
-  bossDrops: 150,
+  dropsPerMap: 1,
+  includeGlobalPool: true,
+  bossDropRatio: 0.15,
   pinnedRates: {},
   priceFloorChaos: 0,
 };
@@ -256,8 +259,8 @@ export function effectiveAreaLevel(
 }
 
 interface Refs {
-  /** 전체 카드 가중치 합. 카드 하나가 뽑힐 확률의 분모 */
-  totalWeight: number;
+  /** 지역 제한이 없어 어디서나 후보가 되는 카드들의 가중치 합 */
+  globalPoolWeight: number;
   tierLevel: Map<number, number>;
 }
 
@@ -313,18 +316,24 @@ export function computeMapEv(
   const areaLevel = effectiveAreaLevel(map, params.tierMode, refs.tierLevel);
   const { eligible, locked } = rowsFor(area, index, areaLevel);
 
-  const rows = eligible.map((e) => {
+  const weights = eligible.map((e) =>
+    weightOf(params, e.info?.goldFee ?? index.medianGold, index.weight.get(normalizeName(e.entry.card))),
+  );
+  // 이 지역에서 카드가 드롭될 때의 후보 풀. 전역 풀을 포함할지는 파라미터로 정한다
+  const poolWeight =
+    weights.reduce((a, w) => a + w, 0) + (params.includeGlobalPool ? refs.globalPoolWeight : 0);
+
+  const rows = eligible.map((e, i) => {
     const key = normalizeName(e.entry.card);
     const measured = index.weight.get(key);
-    const gold = e.info?.goldFee ?? index.medianGold;
-    const weight = weightOf(params, gold, measured);
-    // 카드가 드롭됐을 때 이 카드일 확률. 분모는 전체 카드 가중치 합이다
-    const probability = refs.totalWeight > 0 ? weight / refs.totalWeight : 0;
+    const weight = weights[i];
+    // 카드가 드롭됐을 때 이 카드일 확률
+    const probability = poolWeight > 0 ? weight / poolWeight : 0;
     const bossOnly = measured?.bossOnly ?? false;
-    // 보스 카드는 판당 한 번인 보스 처치에서만 나오므로 드롭 횟수가 따로다
-    const drops = bossOnly ? params.bossDrops : params.baseDrops;
+    // 보스 카드는 판당 한 번인 보스 처치에서만 기회가 생긴다
+    const chances = params.dropsPerMap * (bossOnly ? params.bossDropRatio : 1);
     const pinnedRate = params.pinnedRates[pinKey(map.slug, e.entry.card)];
-    const dropsPerMap = pinnedRate !== undefined ? pinnedRate : drops * probability;
+    const dropsPerMap = pinnedRate !== undefined ? pinnedRate : chances * probability;
     const chaos = e.price ? e.price.chaos : params.priceFloorChaos;
 
     return {
@@ -376,17 +385,15 @@ export function computeAll(input: EvInput, params: EvParams): MapEv[] {
   const index = buildIndex(input);
   const tierLevel = tierLevels(input.maps);
 
-  // 확률의 분모. 가중치 근거를 바꾸면 분모도 같은 근거로 다시 구한다
-  const allWeights = input.weights?.cards ?? [];
-  const totalWeight =
-    params.weightSource === 'measured'
-      ? (input.weights?.totalWeight ?? allWeights.reduce((a, c) => a + c.weight, 0))
-      : allWeights.reduce(
-          (a, c) => a + weightOf(params, c.gold ?? index.medianGold, c),
-          0,
-        );
+  // 지역 제한이 없는 카드 = 어느 지역의 카드 목록에도 없는 카드
+  const restricted = new Set(
+    input.areas.flatMap((a) => a.cards.map((c) => normalizeName(c.card))),
+  );
+  const globalPoolWeight = (input.weights?.cards ?? [])
+    .filter((c) => !restricted.has(normalizeName(c.name)))
+    .reduce((a, c) => a + weightOf(params, c.gold ?? index.medianGold, c), 0);
 
-  const refs: Refs = { totalWeight, tierLevel };
+  const refs: Refs = { globalPoolWeight, tierLevel };
   const out = input.areas
     .filter((a) => {
       const map = index.map.get(a.slug);

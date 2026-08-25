@@ -103,11 +103,11 @@ export function Controls({ params, onParams, view, onView, pinCount, onClearPins
 
         <div className="field">
           <label>
-            지도 1판당 카드 드롭 횟수 <span className="value">{params.baseDrops}</span>
+            지도 1판당 카드 드롭 수 <span className="value">{params.dropsPerMap}</span>
           </label>
           <input
-            type="range" min={100} max={3000} step={100} value={params.baseDrops}
-            onChange={(e) => set('baseDrops', Number(e.target.value))}
+            type="range" min={0.5} max={20} step={0.5} value={params.dropsPerMap}
+            onChange={(e) => set('dropsPerMap', Number(e.target.value))}
           />
           <div className="hint">
             모든 지도에 공통으로 곱해지므로 순위와 배율은 바뀌지 않는다. 드롭 빈도 표기가 체감과 맞도록
@@ -116,17 +116,31 @@ export function Controls({ params, onParams, view, onView, pinCount, onClearPins
         </div>
 
         <div className="field">
+          <label className="check" style={{ marginBottom: 4 }}>
+            <input
+              type="checkbox" checked={params.includeGlobalPool}
+              onChange={(e) => set('includeGlobalPool', e.target.checked)}
+            />
+            확률 분모에 전역 풀 포함
+          </label>
+          <div className="hint">
+            카드가 드롭될 때 후보는 그 지역에서 나올 수 있는 카드들이다. 지역 제한이 없는 카드까지 후보에
+            넣으면 지도 전용 카드의 확률이 그만큼 희석된다. 끄면 지도 전용 카드끼리만 경쟁한다고 본다.
+            실제 후보 구성은 공개 데이터로 확정할 수 없다.
+          </div>
+        </div>
+
+        <div className="field">
           <label>
-            보스 카드 드롭 횟수 <span className="value">{params.bossDrops}</span>
-            <span className="dim"> (기준의 {Math.round((params.bossDrops / params.baseDrops) * 100)}%)</span>
+            보스 카드 드롭 기회 <span className="value">{Math.round(params.bossDropRatio * 100)}%</span>
           </label>
           <input
-            type="range" min={0} max={params.baseDrops} step={10} value={Math.min(params.bossDrops, params.baseDrops)}
-            onChange={(e) => set('bossDrops', Number(e.target.value))}
+            type="range" min={0} max={1} step={0.05} value={params.bossDropRatio}
+            onChange={(e) => set('bossDropRatio', Number(e.target.value))}
           />
           <div className="hint">
-            보스에서만 나오는 카드는 판당 한 번뿐인 보스 처치에서만 기회가 생긴다. 기본값은 관측 두 건
-            (창살 약제사 100~200판에 1장, 묘지 천벌 2700판에 1장)을 동시에 맞춘 값이다.
+            보스에서만 나오는 카드는 판당 한 번뿐인 보스 처치에서만 기회가 생긴다. 일반 카드 대비 몇 %의
+            기회를 줄지 정한다.
           </div>
         </div>
 
