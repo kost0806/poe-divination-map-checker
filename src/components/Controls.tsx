@@ -106,12 +106,13 @@ export function Controls({ params, onParams, view, onView, pinCount, onClearPins
             지도 1판당 카드 드롭 수 <span className="value">{params.dropsPerMap}</span>
           </label>
           <input
-            type="range" min={0.5} max={20} step={0.5} value={params.dropsPerMap}
+            type="range" min={0.5} max={100} step={0.5} value={params.dropsPerMap}
             onChange={(e) => set('dropsPerMap', Number(e.target.value))}
           />
           <div className="hint">
             모든 지도에 공통으로 곱해지므로 순위와 배율은 바뀌지 않는다. 드롭 빈도 표기가 체감과 맞도록
-            조절하면 된다.
+            조절하면 된다. 스택된 덱 가중치를 지역 드롭률로 바꾸는 비율을 알 수 없어 이 값이 그 차이를
+            함께 흡수하므로, 실제 드롭 장수보다 큰 값이 필요할 수 있다.
           </div>
         </div>
 
