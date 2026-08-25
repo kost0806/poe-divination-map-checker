@@ -1,5 +1,18 @@
 # poe-divination-map-checker
 
+> **Notice — personal project, not for public release**
+>
+> This is a personal tool I built for my own use while playing. It is not a product, it is not
+> released, and there are no plans to publish, promote, or distribute it to other players.
+>
+> The repository is public solely so that this can be stated openly and verified. In particular,
+> it lets the operators of the data sources this project reads — [PoEDB](https://poedb.tw) and
+> [poe.ninja](https://poe.ninja) — see exactly what the code fetches, how often, from which
+> documented endpoints, and with what caching and User-Agent. Publishing the source is a
+> transparency measure, not a distribution channel.
+>
+> Not affiliated with or endorsed by Grinding Gear Games, PoEDB, or poe.ninja.
+
 Path of Exile 아틀라스 **지도별 점술 카드 기대 수익** 계산기.
 
 현재 리그의 화폐 거래소(Currency Exchange) 시세와 게임 데이터를 결합해, 지도마다 어떤
