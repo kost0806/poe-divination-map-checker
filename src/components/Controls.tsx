@@ -118,21 +118,6 @@ export function Controls({ params, onParams, view, onView, pinCount, onClearPins
         </div>
 
         <div className="field">
-          <label className="check" style={{ marginBottom: 4 }}>
-            <input
-              type="checkbox" checked={params.includeGlobalPool}
-              onChange={(e) => set('includeGlobalPool', e.target.checked)}
-            />
-            확률 분모에 전역 풀 포함
-          </label>
-          <div className="hint">
-            카드가 드롭될 때 후보는 그 지역에서 나올 수 있는 카드들이다. 지역 제한이 없는 카드까지 후보에
-            넣으면 지도 전용 카드의 확률이 그만큼 희석된다. 끄면 지도 전용 카드끼리만 경쟁한다고 본다.
-            실제 후보 구성은 공개 데이터로 확정할 수 없다.
-          </div>
-        </div>
-
-        <div className="field">
           <label>실행 등급 가정</label>
           <select
             value={typeof params.tierMode === 'number' ? String(params.tierMode) : params.tierMode}

@@ -49,14 +49,6 @@ export interface EvParams {
   gamma: number;
   /** 지도 1판에 점술 카드가 몇 장 떨어진다고 볼지 */
   dropsPerMap: number;
-  /**
-   * 확률의 분모에 전역 풀을 포함할지.
-   *
-   * 카드가 드롭될 때 후보는 그 지역에서 나올 수 있는 카드들이다. 지역 제한이 없는 카드(전역 풀)를
-   * 후보에 포함하면 지도 전용 카드의 확률이 그만큼 희석된다. true 면 확률 = w / (전역 풀 + 지도 4장),
-   * false 면 확률 = w / 지도 4장. 실제 후보 구성은 공개 데이터로 확정할 수 없어 선택지로 둔다.
-   */
-  includeGlobalPool: boolean;
 
   /**
    * 실측으로 고정한 카드별 드롭 횟수. 키는 `지도슬러그|카드영문명`, 값은 지도 1판당 기대 개수.
@@ -104,7 +96,6 @@ export const DEFAULT_PARAMS: EvParams = {
   weightSource: 'measured',
   gamma: 2.35,
   dropsPerMap: 1,
-  includeGlobalPool: true,
   pinnedRates: {},
   priceFloorChaos: 0,
 };
@@ -321,9 +312,10 @@ export function computeMapEv(
   const weights = eligible.map((e) =>
     weightOf(params, e.info?.goldFee ?? index.medianGold, index.weight.get(normalizeName(e.entry.card))),
   );
-  // 이 지역에서 카드가 드롭될 때의 후보 풀. 전역 풀을 포함할지는 파라미터로 정한다
-  const poolWeight =
-    weights.reduce((a, w) => a + w, 0) + (params.includeGlobalPool ? refs.globalPoolWeight : 0);
+  // 이 지역에서 카드가 드롭될 때의 후보 풀.
+  // 지역 제한이 없는 카드는 어디서나 후보이므로 반드시 분모에 들어간다. 지도 전용 카드만으로
+  // 분모를 잡으면 전용 카드가 전부 희귀한 지도(상점가는 4장 합이 34)에서 확률이 터무니없어진다.
+  const poolWeight = weights.reduce((a, w) => a + w, 0) + refs.globalPoolWeight;
 
   const rows = eligible.map((e, i) => {
     const key = normalizeName(e.entry.card);
