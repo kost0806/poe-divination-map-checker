@@ -211,7 +211,12 @@ export function App() {
 
             {selectedRow && (
               <div ref={detailRef}>
-                <MapDetail row={selectedRow} divineChaos={div} />
+                <MapDetail
+                  row={selectedRow}
+                  divineChaos={div}
+                  cardsPerRun={params.cardsPerRun}
+                  onCalibrate={(next) => setParams((p) => ({ ...p, cardsPerRun: next }))}
+                />
               </div>
             )}
 

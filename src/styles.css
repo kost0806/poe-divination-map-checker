@@ -110,3 +110,10 @@ tbody tr.selected { background: #232838; }
 .prose table { margin: 12px 0; }
 .prose li { margin-bottom: 6px; }
 .tableWrap { overflow-x: auto; }
+
+.calib { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px;
+  padding: 8px 10px; background: var(--panel-2); border-radius: 4px; }
+.calib input { width: 92px; }
+.calib button { background: var(--panel); color: var(--accent); border: 1px solid var(--accent-dim);
+  border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 12px; }
+.calib button:disabled { color: var(--muted); border-color: var(--line); cursor: default; }
