@@ -1,31 +1,62 @@
 import { useState } from 'react';
-import type { MapEv } from '../../shared/ev';
+import type { EvParams, MapEv } from '../../shared/ev';
 import { chaos, frequency, percent, round } from '../lib/format';
 import { ko } from '../lib/names';
 
 interface Props {
   row: MapEv;
   divineChaos: number;
-  /** 현재 적용 중인 "평균 지도 1회당 전용 카드 수" 가정 */
-  cardsPerRun: number;
-  onCalibrate: (cardsPerRun: number) => void;
+  params: EvParams;
+  /** 전체 카드 관측 → 지도당 카드 수(스케일) 보정 */
+  onCalibrateScale: (cardsPerRun: number) => void;
+  /** 특정 카드 관측 → 희소성 지수 γ 역산. 재현 불가능하면 null 을 돌려준다 */
+  onCalibrateGamma: (card: string, dropsPerRun: number) => number | null;
 }
 
 const layoutLabel = (v: boolean | null) => (v === null ? '-' : v ? '예' : '아니오');
 
-export function MapDetail({ row, divineChaos, cardsPerRun, onCalibrate }: Props) {
+export function MapDetail({
+  row,
+  divineChaos,
+  params,
+  onCalibrateScale,
+  onCalibrateGamma,
+}: Props) {
   const { map } = row;
+  const [target, setTarget] = useState('__all__');
   const [runs, setRuns] = useState('');
   const [drops, setDrops] = useState('');
+  const [result, setResult] = useState<string | null>(null);
 
   const runCount = Number(runs);
   const dropCount = Number(drops);
-  const observable = runCount > 0 && dropCount >= 0 && row.cardsPerRun > 0;
-  // 관측 비율과 현재 예측의 비율만큼 전역 스케일을 밀어준다.
-  // 몬스터 밀도 보정·지도별 상대 드롭량은 row.cardsPerRun 에 이미 반영돼 있다.
-  const calibrated = observable ? (cardsPerRun * (dropCount / runCount)) / row.cardsPerRun : 0;
+  const observedRate = runCount > 0 ? dropCount / runCount : 0;
+  const targetRow = row.cards.find((c) => c.card === target) ?? null;
+  const predicted = target === '__all__' ? row.cardsPerRun : (targetRow?.dropsPerRun ?? 0);
+  const observable = runCount > 0 && dropCount >= 0 && predicted > 0;
   // 관측 장수 k의 상대 표준오차는 대략 1/√k
   const relError = dropCount > 0 ? 1 / Math.sqrt(dropCount) : null;
+
+  /**
+   * 관측 한 건으로는 스케일과 희소성을 동시에 정할 수 없다. 그래서 대상에 따라 나눈다.
+   * - 전체 카드 수 관측 → 전역 스케일(지도당 카드 수)을 민다
+   * - 희귀한 개별 카드 관측 → 희소성 지수 γ 를 역산한다 (스케일보다 γ 에 훨씬 민감하다)
+   */
+  const apply = () => {
+    if (!observable) return;
+    if (target === '__all__') {
+      // 지도별 상대 드롭량과 몬스터 밀도 보정은 예측값에 이미 반영돼 있다
+      onCalibrateScale((params.cardsPerRun * observedRate) / predicted);
+      setResult(`지도당 카드 수를 ${round((params.cardsPerRun * observedRate) / predicted)}장으로 맞췄다`);
+      return;
+    }
+    const gamma = onCalibrateGamma(target, observedRate);
+    setResult(
+      gamma === null
+        ? '이 관측을 재현하는 γ가 조절 범위 밖이다. 지도당 카드 수를 먼저 조정해 볼 것'
+        : `희소성 지수 γ를 ${gamma.toFixed(2)}로 맞췄다`,
+    );
+  };
   return (
     <div className="panel detail" style={{ marginTop: 0 }}>
       <h3>{ko(map.nameKo, map.name)}</h3>
@@ -102,24 +133,49 @@ export function MapDetail({ row, divineChaos, cardsPerRun, onCalibrate }: Props)
 
       <div className="calib">
         <span className="small dim">실측 보정</span>
+        <select
+          value={target}
+          onChange={(e) => {
+            setTarget(e.target.value);
+            setResult(null);
+          }}
+          style={{ width: 'auto' }}
+        >
+          <option value="__all__">전용 카드 전체</option>
+          {row.cards.map((c) => (
+            <option key={c.card} value={c.card}>
+              {ko(c.cardKo, c.card)}
+            </option>
+          ))}
+        </select>
         <input
           type="number" min={1} placeholder="돌린 횟수" value={runs}
-          onChange={(e) => setRuns(e.target.value)}
+          onChange={(e) => {
+            setRuns(e.target.value);
+            setResult(null);
+          }}
         />
         <span className="small dim">회 돌려</span>
         <input
           type="number" min={0} placeholder="먹은 장수" value={drops}
-          onChange={(e) => setDrops(e.target.value)}
+          onChange={(e) => {
+            setDrops(e.target.value);
+            setResult(null);
+          }}
         />
         <span className="small dim">장</span>
-        <button disabled={!observable || calibrated <= 0} onClick={() => onCalibrate(calibrated)}>
+        <button disabled={!observable} onClick={apply}>
           이 값으로 보정
         </button>
         <span className="small dim">
-          {observable
-            ? `현재 예측 ${round(row.cardsPerRun)}장/회 → 관측 ${round(dropCount / runCount)}장/회` +
-              (relError ? ` (표본 ${dropCount}장, 오차 ±${Math.round(relError * 100)}%)` : '')
-            : `위 표의 점술 카드 ${row.poolSize}종만 세고, 아무 지도에서나 나오는 카드는 제외할 것`}
+          {result ??
+            (observable
+              ? `현재 예측 ${frequency(1 / predicted)} → 관측 ${frequency(runCount / Math.max(dropCount, 1))}` +
+                (relError ? ` · 표본 ${dropCount}장, 오차 ±${Math.round(relError * 100)}%` : '') +
+                (target === '__all__' ? ' · 지도당 카드 수를 맞춘다' : ' · 희소성 지수 γ를 맞춘다')
+              : target === '__all__'
+                ? `위 표의 점술 카드 ${row.poolSize}종만 세고, 아무 지도에서나 나오는 카드는 제외할 것`
+                : '희귀한 카드일수록 γ 추정에 유리하다')}
         </span>
       </div>
 

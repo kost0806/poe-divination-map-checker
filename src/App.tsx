@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { computeAll, DEFAULT_PARAMS, type EvParams, type MapEv } from '../shared/ev';
+import {
+  computeAll,
+  DEFAULT_PARAMS,
+  GAMMA_BOUNDS,
+  solveGamma,
+  type EvInput,
+  type EvParams,
+  type MapEv,
+} from '../shared/ev';
 import type { Dataset } from '../shared/types';
 import { Controls, type ViewOptions } from './components/Controls';
 import { MapDetail } from './components/MapDetail';
@@ -53,20 +61,22 @@ export function App() {
     if (selected) detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [selected]);
 
-  const all: MapEv[] = useMemo(
+  const evInput: EvInput | null = useMemo(
     () =>
       dataset
-        ? computeAll(
-            {
-              areas: dataset.static.areas,
-              maps: dataset.static.maps,
-              cards: dataset.static.cards,
-              prices: dataset.prices.prices,
-            },
-            params,
-          )
-        : [],
-    [dataset, params],
+        ? {
+            areas: dataset.static.areas,
+            maps: dataset.static.maps,
+            cards: dataset.static.cards,
+            prices: dataset.prices.prices,
+          }
+        : null,
+    [dataset],
+  );
+
+  const all: MapEv[] = useMemo(
+    () => (evInput ? computeAll(evInput, params) : []),
+    [evInput, params],
   );
 
   const rows = useMemo(() => {
@@ -205,8 +215,20 @@ export function App() {
                 <MapDetail
                   row={selectedRow}
                   divineChaos={div}
-                  cardsPerRun={params.cardsPerRun}
-                  onCalibrate={(next) => setParams((p) => ({ ...p, cardsPerRun: next }))}
+                  params={params}
+                  onCalibrateScale={(cardsPerRun) => setParams((prev) => ({ ...prev, cardsPerRun }))}
+                  onCalibrateGamma={(card, dropsPerRun) => {
+                    const gamma = solveGamma(
+                      evInput!,
+                      params,
+                      selectedRow.map.slug,
+                      card,
+                      dropsPerRun,
+                      GAMMA_BOUNDS,
+                    );
+                    if (gamma !== null) setParams((prev) => ({ ...prev, gamma }));
+                    return gamma;
+                  }}
                 />
               </div>
             )}

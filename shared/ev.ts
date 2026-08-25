@@ -40,6 +40,9 @@ export interface EvParams {
   priceFloorChaos: number;
 }
 
+/** 희소성 지수 조절 범위. 실측 관측치(천벌 2700판에 1장 등)가 2 부근이라 넉넉히 잡는다 */
+export const GAMMA_BOUNDS = { min: 0.3, max: 5 };
+
 export const DEFAULT_PARAMS: EvParams = {
   tierMode: 'base',
   weightSource: 'gold',
@@ -410,4 +413,47 @@ export function calibrateGamma(input: EvInput, minVolume = 1): Calibration | nul
     minVolume,
     points,
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * 실측 관측으로 파라미터 역산
+ * ------------------------------------------------------------------ */
+
+/** 특정 지도에서 특정 카드가 실제로 나온 빈도를 재현하는 γ를 찾는다 */
+export function solveGamma(
+  input: EvInput,
+  params: EvParams,
+  mapSlug: string,
+  card: string,
+  targetDropsPerRun: number,
+  bounds: { min: number; max: number },
+): number | null {
+  if (!(targetDropsPerRun > 0)) return null;
+
+  const rateAt = (gamma: number): number | null => {
+    const rows = computeAll(input, { ...params, gamma });
+    const row = rows.find((r) => r.map.slug === mapSlug);
+    return row?.cards.find((c) => c.card === card)?.dropsPerRun ?? null;
+  };
+
+  const low = rateAt(bounds.min);
+  const high = rateAt(bounds.max);
+  if (low === null || high === null) return null;
+  // 흔한 카드는 γ가 커질수록 오히려 비중이 늘어 방향이 뒤집히므로 양쪽 모두 처리한다
+  const decreasing = high < low;
+  const reachable = decreasing
+    ? targetDropsPerRun <= low && targetDropsPerRun >= high
+    : targetDropsPerRun >= low && targetDropsPerRun <= high;
+  if (!reachable) return null;
+
+  let min = bounds.min;
+  let max = bounds.max;
+  for (let i = 0; i < 60; i++) {
+    const mid = (min + max) / 2;
+    const rate = rateAt(mid);
+    if (rate === null) return null;
+    if (decreasing ? rate > targetDropsPerRun : rate < targetDropsPerRun) min = mid;
+    else max = mid;
+  }
+  return (min + max) / 2;
 }

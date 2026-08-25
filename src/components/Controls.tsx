@@ -1,4 +1,4 @@
-import type { EvParams } from '../../shared/ev';
+import { GAMMA_BOUNDS, type EvParams } from '../../shared/ev';
 import type { Calibration } from '../../shared/types';
 
 export interface ViewOptions {
@@ -95,11 +95,11 @@ export function Controls({ params, onParams, view, onView, calibration, onReset 
               희소성 지수 γ <span className="value">{params.gamma.toFixed(2)}</span>
             </label>
             <input
-              type="range" min={0.3} max={2.5} step={0.05} value={params.gamma}
+              type="range" min={GAMMA_BOUNDS.min} max={GAMMA_BOUNDS.max} step={0.05} value={params.gamma}
               onChange={(e) => set('gamma', Number(e.target.value))}
             />
             <div className="hint">
-              드롭률 ∝ 골드<sup>-γ</sup>. 기본값 1.00 은 드롭률이 골드 수수료에 정확히 반비례한다는 뜻이다.
+              드롭률 ∝ 골드<sup>-γ</sup>. 기본값 1.00 은 드롭률이 골드 수수료에 정확히 반비례한다는 뜻이고, 높일수록 비싼 카드가 더 희귀해진다.
               {calibration && (
                 <>
                   {' '}현재 시세로 실측하면 {calibration.gamma.toFixed(2)} (R²=
