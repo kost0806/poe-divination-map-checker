@@ -77,13 +77,16 @@ export function Controls({ params, onParams, view, onView, calibration, onReset 
             value={params.weightSource}
             onChange={(e) => set('weightSource', e.target.value as EvParams['weightSource'])}
           >
-            <option value="gold">골드 수수료 (권장)</option>
+            <option value="measured">커뮤니티 실측 가중치 (권장)</option>
+            <option value="gold">골드 수수료 추정</option>
             <option value="uniform">균등 (모든 카드 동일 확률)</option>
             <option value="volume">24시간 거래량 (편향 주의)</option>
           </select>
           <div className="hint">
+            {params.weightSource === 'measured' &&
+              'Divcord 커뮤니티가 스택된 덱 116만 개를 열어 실측한 카드별 가중치. 스택된 덱은 전역 가중치 표에서 무작위로 뽑으므로 지도 선호도나 거래 유동성 편향이 없다.'}
             {params.weightSource === 'gold' &&
-              '화폐 거래소 골드 수수료는 GGG가 아이템마다 직접 매긴 고정값이라 시세나 지도 선호도와 무관하다.'}
+              '골드 수수료로 추정한다. 실측 가중치와의 회귀는 가중치 ∝ 골드^-2.35 (R²=0.87) 이지만 카드별 편차가 크다.'}
             {params.weightSource === 'uniform' && '그 지도의 전용 카드가 모두 같은 확률로 나온다고 가정한다.'}
             {params.weightSource === 'volume' &&
               '값싼 카드는 거래 자체가 안 되므로 드롭량이 크게 과소 반영된다. 비교용으로만 쓸 것.'}

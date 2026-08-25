@@ -24,8 +24,10 @@ import type {
   Calibration,
   CardInfo,
   MapInfo,
+  CardWeight,
   PriceEntry,
   ScryingPrice,
+  WeightData,
 } from './types.js';
 
 export interface EvParams {
@@ -37,8 +39,13 @@ export interface EvParams {
    * - 숫자: 해당 등급으로 돌린다고 가정
    */
   tierMode: 'voidstone' | 'base' | number;
-  /** 상대 드롭률의 근거 */
-  weightSource: 'gold' | 'uniform' | 'volume';
+  /**
+   * 상대 드롭률의 근거.
+   * - 'measured': Divcord 커뮤니티가 스택된 덱 개봉으로 실측한 가중치 (기본값)
+   * - 'gold': 골드 수수료 기반 추정
+   * - 'uniform' / 'volume': 비교용
+   */
+  weightSource: 'measured' | 'gold' | 'uniform' | 'volume';
   /** 희소성 지수 γ. 드롭률 ∝ 골드^(-γ) */
   gamma: number;
   /**
@@ -98,7 +105,7 @@ export function isFavourable(map: MapInfo): boolean {
 
 export const DEFAULT_PARAMS: EvParams = {
   tierMode: 'voidstone',
-  weightSource: 'gold',
+  weightSource: 'measured',
   gamma: 1,
   priceExponent: 0,
   pinnedRates: {},
@@ -133,8 +140,10 @@ export interface CardRow {
   dropsPerRun: number;
   /** 몇 회 실행당 1장 꼴인지 (체감 검증용) */
   runsPerDrop: number;
-  /** 공식 대신 실측 관측값으로 고정된 카드인지 */
+  /** 공식 대신 사용자가 관측값으로 고정한 카드인지 */
   pinned: boolean;
+  /** 커뮤니티 실측 가중치 정보 */
+  measured: CardWeight | undefined;
   /** 지도 1회당 기대 기여 수익(카오스) */
   contribution: number;
   /** 이 지도 기대 수익에서 차지하는 비중 */
@@ -185,6 +194,8 @@ export interface EvInput {
   prices: PriceEntry[];
   /** 지도별 예지의 오브 시세. 없으면 회수 판수를 계산하지 않는다 */
   scrying?: ScryingPrice[];
+  /** 카드별 실측 드롭 가중치 */
+  weights?: WeightData | null;
 }
 
 /** 이름 표기 차이를 흡수하는 정규화 키 */
@@ -195,6 +206,7 @@ export function normalizeName(name: string): string {
 interface Index {
   price: Map<string, PriceEntry>;
   scrying: Map<string, ScryingPrice>;
+  weight: Map<string, CardWeight>;
   card: Map<string, CardInfo>;
   map: Map<string, MapInfo>;
   areaCount: Map<string, number>;
@@ -242,6 +254,7 @@ export function buildIndex(input: EvInput): Index {
     card,
     map,
     scrying: new Map((input.scrying ?? []).flatMap((s) => (s.mapSlug ? [[s.mapSlug, s] as const] : []))),
+    weight: new Map((input.weights?.cards ?? []).map((w) => [normalizeName(w.name), w])),
     areaCount,
     medianGold: median(input.cards.map((c) => c.goldFee ?? 0).filter((g) => g > 0)),
   };
@@ -283,9 +296,15 @@ function weightOf(
   chaos: number,
   volume: number,
   areaCount: number,
+  measured: CardWeight | undefined,
 ): number {
   if (params.weightSource === 'uniform') return 1;
   if (params.weightSource === 'volume') return volume / Math.max(areaCount, 1);
+  if (params.weightSource === 'measured') {
+    // 실측 가중치가 없는 카드만 골드 추정으로 넘어간다
+    if (measured) return measured.weight;
+    return Math.pow(Math.max(gold, 1), -2.35);
+  }
   return (
     Math.pow(Math.max(gold, 1), -params.gamma) *
     Math.pow(Math.max(chaos, 1), -params.priceExponent)
@@ -355,7 +374,8 @@ export function computeMapEv(
       reward: e.info?.reward ?? null,
       rewardKo: e.info?.rewardKo ?? null,
       areaCount,
-      weight: weightOf(params, gold, e.price?.chaos ?? 0, volume, areaCount),
+      weight: weightOf(params, gold, e.price?.chaos ?? 0, volume, areaCount, index.weight.get(key)),
+      measured: index.weight.get(key),
       /** 실측으로 고정된 드롭률이 있으면 공식 대신 그 값을 쓴다 */
       pinned: params.pinnedRates[pinKey(map.slug, e.entry.card)],
     };
@@ -446,6 +466,7 @@ export function computeAll(input: EvInput, params: EvParams): MapEv[] {
           e.price?.chaos ?? 0,
           e.price?.volume ?? 0,
           index.areaCount.get(key) ?? 1,
+          index.weight.get(key),
         )
       );
     }, 0);

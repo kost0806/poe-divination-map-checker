@@ -97,6 +97,8 @@ export interface StaticData {
   areas: AreaPool[];
   maps: MapInfo[];
   cards: CardInfo[];
+  /** 카드별 실측 드롭 가중치 */
+  weights: WeightData | null;
 }
 
 /** 런타임에 갱신되는 시세 스냅샷 */
@@ -106,6 +108,39 @@ export interface PriceData {
   /** 1 신성한 오브 = ? 카오스 오브 */
   divineChaos: number;
   prices: PriceEntry[];
+}
+
+/**
+ * 카드별 드롭 가중치. Divcord 커뮤니티가 스택된 덱을 대량으로 개봉해 실측한 값이다.
+ * 스택된 덱은 전역 가중치 표에서 무작위로 카드를 뽑으므로 지도 선호도나 거래 유동성
+ * 편향이 없다. 기준 척도는 Rain of Chaos = 121,400.
+ */
+export interface CardWeight {
+  name: string;
+  weight: number;
+  /**
+   * measured: 표본에서 직접 관측된 값
+   * bucket: 표본이 0 이라 희소도 등급과 검출 상한으로 추정한 값
+   * gold: 표에 없는 신규 카드라 골드 수수료 회귀로 추정한 값
+   */
+  source: 'measured' | 'bucket' | 'gold';
+  /** 커뮤니티가 매긴 희소도 등급 */
+  bucket: number | null;
+  /** 보스에서만 나오는 카드. 일반 지역 드롭과 경로가 다르다 */
+  bossOnly: boolean;
+}
+
+export interface WeightData {
+  fetchedAt: string;
+  /** 집계에 사용한 패치 */
+  patches: string[];
+  /** 집계에 사용한 스택된 덱 개봉 표본 수 */
+  totalSamples: number;
+  /** 표본 0 인 카드의 가중치 상한 (95%) */
+  detectionBound: number;
+  /** 가중치 ∝ 골드^(-x) 회귀 결과 (신규 카드 추정용) */
+  goldFit: { exponent: number; intercept: number; r2: number; samples: number };
+  cards: CardWeight[];
 }
 
 /** 지도 하나를 예지하는 데 드는 예지의 오브 시세 (poe.ninja) */

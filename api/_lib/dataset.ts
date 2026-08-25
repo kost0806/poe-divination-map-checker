@@ -109,6 +109,7 @@ export async function buildDataset(): Promise<Dataset> {
       maps: staticData.maps,
       cards: staticData.cards,
       prices: prices.prices,
+      weights: staticData.weights,
     }),
   };
 }

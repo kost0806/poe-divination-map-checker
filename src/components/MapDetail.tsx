@@ -151,7 +151,23 @@ export function MapDetail({
                 <td className="num chaos">
                   {c.noPrice ? <span className="dim">-</span> : chaos(c.chaos, divineChaos)}
                 </td>
-                <td className="num dim">{c.goldFee ?? '-'}</td>
+                <td className="num dim">
+                  {c.measured ? (
+                    <>
+                      {c.measured.weight < 100
+                        ? c.measured.weight.toFixed(1)
+                        : Math.round(c.measured.weight).toLocaleString('ko-KR')}
+                      {c.measured.source !== 'measured' && (
+                        <span className="dim small" title="표본이 없어 추정한 값"> 추정</span>
+                      )}
+                      {c.measured.bossOnly && (
+                        <span className="warnText small" title="보스에서만 나오는 카드. 일반 지역 드롭과 경로가 달라 추정이 특히 불확실하다"> 보스</span>
+                      )}
+                    </>
+                  ) : (
+                    '-'
+                  )}
+                </td>
                 <td className="num">
                   {frequency(c.runsPerDrop)}
                   {c.pinned && (

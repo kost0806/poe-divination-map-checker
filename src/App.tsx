@@ -85,6 +85,7 @@ export function App() {
             cards: dataset.static.cards,
             prices: dataset.prices.prices,
             scrying: dataset.scrying?.prices,
+            weights: dataset.static.weights,
           }
         : null,
     [dataset],
